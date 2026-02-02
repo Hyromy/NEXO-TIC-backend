@@ -15,6 +15,10 @@
     - [Docker](#docker)
     - [Docker Compose](#docker-compose)
   - [USO](#uso)
+  - [SERVICIOS ADICIONALES](#servicios-adicionales)
+    - [Especificaciones de la VM](#especificaciones-de-la-vm)
+    - [Configuración de Red](#configuración-de-red)
+    - [Credenciales de la VM](#credenciales-de-la-vm)
 
 ## VARIABLES DE ENTORNO
 
@@ -31,6 +35,8 @@ Sin embargo el proyecto puede funcionar sin establecer ninguna variable.
 | `PG_PASS` | `"postgres"` | Contraseña de PostgreSQL |
 | `PG_HOST` | `"localhost"` | Host de PostgreSQL |
 | `PG_PORT` | `5432` | Puerto de PostgreSQL |
+| `MAILER_IP` | `"192.168.1.100"` | Dirección de servidor de correos SMTP |
+| `MAILER_PORT` | `25` | Puerto de servidor de correos SMTP |
 
 > [!NOTE]
 > En caso de que `PRODUCTION=False` la base de datos será una instancia de __SQLite__
@@ -100,3 +106,35 @@ El proyecto incluye interfaces de usuario y una API REST ubicado en `/api/`. Cad
 
 > [!WARNING]
 > Todos los enpoints deben de tener el prefijo `api/` y terminar en `/`.
+
+## SERVICIOS ADICIONALES
+
+Para fines demostrativos, se provee una [máquina virtual (.ova)](https://drive.google.com/file/d/194U0mdyv1TNKQNutDiKEP1iC7QT3YKed/view?usp=sharing) pre-configurada. Esto es necesario cuando `PRODUCTION=True`, ya que el módulo [mail](./apps/mail/) requiere un servidor SMTP activo y una infraestructura de red específica.
+
+### Especificaciones de la VM
+La máquina virtual **Debian** incluye:
+- **DNS (bind9):** Resuelve los dominios locales del proyecto.
+- **Proxy Inverso (Nginx):** Redirige el tráfico.
+- **MTA (Postfix):** Gestión de envío y recepción de correos.
+- **Webmail/Scripting (PHP):** Lógica para creación de buzones y visualización.
+
+> [!WARNING]
+> La configuración de la VM puede no ser apta para entornos productivos.
+
+### Configuración de Red
+La VM debe importarse usando virtualización (ej. VirtualBox) con la red en modo **Adaptador Puente (Bridged Adapter)**.
+
+**Configuración por defecto:**
+La VM tiene una IP estática, pero espera que la máquina anfitriona (tu PC) tenga una IP específica para que el DNS funcione correctamente.
+
+| Dispositivo | IP Configurada | Dominio |
+| - | - | - |
+| **VM (Guest)** | `192.168.1.100` | `mail.nexotic.com` |
+| **PC (Host)** | `192.168.1.128` | `nexotic.com` |
+
+> [!IMPORTANT]
+> Si tu red local asigna IPs diferentes, deberás entrar a la VM y modificar las zonas DNS o ajustar la asignación de IPs del router.
+
+### Credenciales de la VM
+- **Usuario:** `root`
+- **Contraseña:** `hyro`
