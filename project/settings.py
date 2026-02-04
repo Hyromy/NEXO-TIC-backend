@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.api",
     "apps.login",
     "apps.dashboard",
+    "apps.mail",
 ]
 
 MIDDLEWARE = [
@@ -104,3 +105,10 @@ STATICFILES_DIRS = [
 ]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = getenv("MAILER_IP", "192.168.1.100")
+EMAIL_PORT = getenv("MAILER_PORT", "25")
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = False
+DEFAULT_FROM_EMAIL = "noreply@nexotic.com"

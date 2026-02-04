@@ -6,6 +6,10 @@ from django.contrib.auth import (
     logout as auth_logout,
 )
 from django.contrib.auth.models import User
+from django.conf import settings
+
+import apps.mail.views as mail
+import apps.mail.funcs as mail_funcs
 
 def login(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
@@ -31,7 +35,6 @@ def __check_signup(user_name, email, password, confirm_password) -> str | None:
     if User.objects.filter(email = email).exists():
         return "El correo electrónico ya está registrado. Por favor, usa otro."
 
-
 def signup(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         user_name = request.POST.get("username")
@@ -47,11 +50,20 @@ def signup(request: HttpRequest) -> HttpResponse:
 
         try:
             user = User.objects.create_user(username = user_name, email = email, password = password)
+            if not settings.DEBUG:
+                if not mail_funcs.create_user_inbox(user):
+                    raise Exception("Problemas al crear el usuario de correo")
+                else:
+                    mail.welcome(request, user)
+
             auth_login(request, user)
         
         except Exception as e:
+            if user is not None:
+                user.delete()
+                
             return render(request, "signup.html", {
-                "error": f"Ocurrió un error al crear la cuenta: {str(e)}"
+                "error": f"Ocurrió un error: {str(e)}"
             })
         
         else:
