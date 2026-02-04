@@ -38,6 +38,9 @@ services:
       PG_PASS: postgres
       PG_HOST: db
 
+    extra_hosts:
+      - "mail.nexotic.com:192.168.1.100"
+
     networks:
       - nexo_tic_network
 
