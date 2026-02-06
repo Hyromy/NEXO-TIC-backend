@@ -1,3 +1,4 @@
+from django.db.transaction import atomic
 from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -8,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.api.decorators import require_fields
+from apps.mail.mails import welcome
 
 from utils.randomizer import generate_password
 from utils.validator import is_email
@@ -37,14 +39,18 @@ def signup(request: Request) -> Response:
         if User.objects.filter(username = data['username'], email = data['email']).exists():
             raise Exception("User already exists.")
 
-        temp_pass = generate_password(use_upper = True, use_numbers = True)
-        User.objects.create_user(
-            username = data['username'],
-            email = data['email'],
-            password = temp_pass
-        )
-
-        print(f"Temporary password for {data['username']}: {temp_pass}")
+        tmp_pass = generate_password(use_upper = True, use_numbers = True)
+        with atomic():
+            user = User.objects.create_user(
+                username = data['username'],
+                email = data['email'],
+                password = tmp_pass
+            )
+    
+            welcome(
+                user = user,
+                tmp_pass = tmp_pass
+            )
     
     except Exception as e:
         return Response(
