@@ -9,6 +9,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.api.decorators import require_fields
 
+from utils.randomizer import generate_password
+from utils.validator import is_email
+
 class MyTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
 
@@ -20,19 +23,28 @@ class MyTokenRefreshView(TokenRefreshView):
 @require_fields([
     ('username', str),
     ('email', str),
-    ('password', str),
 ])
 def signup(request: Request) -> Response:
     data = request.data
+
+    if not is_email(data['email']):
+        return Response(
+            {"error": "Invalid email address."},
+            status = status.HTTP_400_BAD_REQUEST
+        )
+
     try:
         if User.objects.filter(username = data['username'], email = data['email']).exists():
             raise Exception("User already exists.")
-        
+
+        temp_pass = generate_password(use_upper = True, use_numbers = True)
         User.objects.create_user(
             username = data['username'],
             email = data['email'],
-            password = data['password']
+            password = temp_pass
         )
+
+        print(f"Temporary password for {data['username']}: {temp_pass}")
     
     except Exception as e:
         return Response(
