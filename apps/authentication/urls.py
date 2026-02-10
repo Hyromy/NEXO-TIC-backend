@@ -5,11 +5,13 @@ from .views import (
     MyTokenRefreshView,
     signup,
     logout,
+    recover,
 )
 
 urlpatterns = [
     path("signup/", signup),                            # public
     path("login/", MyTokenObtainPairView.as_view()),    # public
     path("refresh/", MyTokenRefreshView.as_view()),     # public
+    path("recover/", recover),                          # public
     path("logout/", logout),
 ]
