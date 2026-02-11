@@ -1,8 +1,0 @@
-<nav>
-    <ul>
-        <li>This is the navigation bar</li>
-        {% if user.is_authenticated %}
-            <li><a href={% url 'logout' %}>Cerrar Sesión</a></li>
-        {% endif %}
-    </ul>
-</nav>
