@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.mail",
     "apps.authentication",
     "apps.cronnos",
+    "apps.models",
 ]
 
 MIDDLEWARE = [
