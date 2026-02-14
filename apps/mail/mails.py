@@ -55,3 +55,10 @@ def welcome(*, user: User, tmp_pass: str):
         summary = f"Registro exitoso, contraseña temporal {tmp_pass}",
         message = f"Gracias por registrarte en nuestro sistema. tu contraseña temporal es {tmp_pass}"
     )
+
+def recover(*, user: User, tmp_pass: str):
+    __safe_send(user,
+        subject = "Recuperación de contraseña",
+        summary = f"Contraseña temporal {tmp_pass}",
+        message = f"Tu contraseña temporal es {tmp_pass}"
+    )

@@ -1,7 +1,7 @@
 from django.db.transaction import atomic
 from django.contrib.auth.models import User
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -9,7 +9,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.api.decorators import require_fields
-from apps.mail.mails import welcome
+from apps.mail.mails import (
+    welcome,
+    recover as recover_mail,
+)
 
 from utils.randomizer import generate_password
 from utils.validator import is_email
@@ -22,6 +25,7 @@ class MyTokenRefreshView(TokenRefreshView):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 @require_fields([
     ('username', str),
     ('email', str),
@@ -79,6 +83,49 @@ def logout(request: Request) -> Response:
     except:
         return Response(
             {"error": "Invalid token"},
+            status = status.HTTP_400_BAD_REQUEST
+        )
+    
+    else:
+        return Response(
+            {"ok": True},
+            status = status.HTTP_200_OK
+        )
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+@require_fields([
+    ("username", str),
+    ("email", str),
+])
+def recover(request: Request) -> Response:
+    data = request.data
+
+    if not is_email(data['email']):
+        return Response(
+            {"error": "Invalid email address."},
+            status = status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        user = User.objects.filter(username = data['username'], email = data['email']).first()
+        if user:
+            # TODO
+            # Add a link to change password in the email
+            tmp_pass = generate_password(use_upper = True, use_numbers = True)
+            with atomic():
+                user.set_password(tmp_pass)
+                user.save()
+    
+                recover_mail(
+                    user = user,
+                    tmp_pass = tmp_pass
+                )
+
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
             status = status.HTTP_400_BAD_REQUEST
         )
     
