@@ -109,7 +109,7 @@ El proyecto incluye interfaces de usuario y una API REST ubicado en `/api/`. Cad
 
 ## SERVICIOS ADICIONALES
 
-Para fines demostrativos, se provee una [máquina virtual (.ova)](https://drive.google.com/file/d/194U0mdyv1TNKQNutDiKEP1iC7QT3YKed/view?usp=sharing) pre-configurada. Esto es necesario cuando `PRODUCTION=True`, ya que el módulo [mail](./apps/mail/) requiere un servidor SMTP activo y una infraestructura de red específica.
+Para fines demostrativos, se provee una [máquina virtual (.ova)](https://drive.google.com/drive/folders/14Xemi1hzUwIlnEw8voOBDg7O-mPNd43a?usp=sharing) pre-configurada. Esto es necesario cuando `PRODUCTION=True`, ya que el módulo [mail](./apps/mail/) requiere un servidor SMTP activo y una infraestructura de red específica.
 
 ### Especificaciones de la VM
 La máquina virtual **Debian** incluye:
