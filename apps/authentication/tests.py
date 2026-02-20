@@ -3,7 +3,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+import jwt
+from django.conf import settings
 
 
 class SignupEndpointTestCase(APITestCase):
@@ -173,6 +175,158 @@ class LoginEndpointTestCase(APITestCase):
         # Verificar que los tokens no están vacíos
         self.assertTrue(response.data['access'])
         self.assertTrue(response.data['refresh'])
+
+    def test_login_devuelve_campos_personalizados(self):
+        """ 
+        Test: Login devuelve campos personalizados del usuario en la respuesta
+        """
+        
+        data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        
+        response = self.client.post('/auth/login/', data, format='json')
+        
+        # Verificar respuesta exitosa
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verificar que devuelve campos personalizados
+        self.assertIn('is_staff', response.data)
+        self.assertIn('is_superuser', response.data)
+        self.assertIn('username', response.data)
+        self.assertIn('first_name', response.data)
+        self.assertIn('last_name', response.data)
+        
+        # Verificar valores correctos
+        self.assertEqual(response.data['username'], 'testuser')
+        self.assertEqual(response.data['is_staff'], False)
+        self.assertEqual(response.data['is_superuser'], False)
+
+    def test_login_staff_devuelve_is_staff_true(self):
+        """ 
+        Test: Login de usuario staff devuelve is_staff=True
+        """
+        
+        # Crear usuario staff
+        staff_user = User.objects.create_user(
+            username='staffuser',
+            email='staff@example.com',
+            password='staffpass123',
+            is_staff=True
+        )
+        
+        data = {
+            'username': 'staffuser',
+            'password': 'staffpass123'
+        }
+        
+        response = self.client.post('/auth/login/', data, format='json')
+        
+        # Verificar respuesta exitosa
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verificar que is_staff es True
+        self.assertEqual(response.data['is_staff'], True)
+        self.assertEqual(response.data['is_superuser'], False)
+
+    def test_login_superuser_devuelve_is_superuser_true(self):
+        """ 
+        Test: Login de superusuario devuelve is_superuser=True
+        """
+        
+        # Crear superusuario
+        super_user = User.objects.create_superuser(
+            username='adminuser',
+            email='admin@example.com',
+            password='adminpass123'
+        )
+        
+        data = {
+            'username': 'adminuser',
+            'password': 'adminpass123'
+        }
+        
+        response = self.client.post('/auth/login/', data, format='json')
+        
+        # Verificar respuesta exitosa
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verificar que is_superuser y is_staff son True
+        self.assertEqual(response.data['is_staff'], True)
+        self.assertEqual(response.data['is_superuser'], True)
+
+    def test_jwt_payload_contiene_campos_personalizados(self):
+        """ 
+        Test: El payload del JWT contiene los campos personalizados del usuario
+        """
+        
+        # Actualizar el usuario con nombres
+        self.user.first_name = 'Test'
+        self.user.last_name = 'User'
+        self.user.save()
+        
+        data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        
+        response = self.client.post('/auth/login/', data, format='json')
+        
+        # Verificar respuesta exitosa
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Decodificar el access token
+        access_token = response.data['access']
+        decoded_token = jwt.decode(
+            access_token,
+            options={"verify_signature": False}
+        )
+        
+        # Verificar que el payload contiene los campos personalizados
+        self.assertIn('is_staff', decoded_token)
+        self.assertIn('is_superuser', decoded_token)
+        self.assertIn('username', decoded_token)
+        self.assertIn('first_name', decoded_token)
+        self.assertIn('last_name', decoded_token)
+        
+        # Verificar valores correctos
+        self.assertEqual(decoded_token['username'], 'testuser')
+        self.assertEqual(decoded_token['first_name'], 'Test')
+        self.assertEqual(decoded_token['last_name'], 'User')
+        self.assertEqual(decoded_token['is_staff'], False)
+        self.assertEqual(decoded_token['is_superuser'], False)
+
+    def test_jwt_payload_staff_tiene_is_staff_true(self):
+        """ 
+        Test: El payload del JWT de un usuario staff tiene is_staff=True
+        """
+        
+        # Crear usuario staff
+        staff_user = User.objects.create_user(
+            username='staffjwt',
+            email='staffjwt@example.com',
+            password='staffpass123',
+            is_staff=True
+        )
+        
+        data = {
+            'username': 'staffjwt',
+            'password': 'staffpass123'
+        }
+        
+        response = self.client.post('/auth/login/', data, format='json')
+        
+        # Decodificar el access token
+        access_token = response.data['access']
+        decoded_token = jwt.decode(
+            access_token,
+            options={"verify_signature": False}
+        )
+        
+        # Verificar que is_staff es True en el payload
+        self.assertEqual(decoded_token['is_staff'], True)
+        self.assertEqual(decoded_token['is_superuser'], False)
 
     def test_login_password_incorrecta(self):
         """ 
