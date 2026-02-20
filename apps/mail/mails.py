@@ -48,7 +48,7 @@ def __safe_send(user: User, *,
 
 def welcome(*, user: User, tmp_pass: str):
     if not settings.DEBUG:
-        __create_user_inbox(user)
+        __create_user_inbox(user = user)
 
     __safe_send(user,
         subject = "Bienvenido a NexoTic",
