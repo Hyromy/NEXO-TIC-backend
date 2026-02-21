@@ -17,8 +17,10 @@ from apps.mail.mails import (
 from utils.randomizer import generate_password
 from utils.validator import is_email
 
+from .serializer import MyTokenObtainPairSerializer
+
 class MyTokenObtainPairView(TokenObtainPairView):
-    permission_classes = [AllowAny]
+    serializer_class = MyTokenObtainPairSerializer
 
 class MyTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]

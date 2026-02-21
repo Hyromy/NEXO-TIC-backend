@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.authentication",
     "apps.cronnos",
     "apps.models",
+    "apps.external_tests",
 ]
 
 MIDDLEWARE = [

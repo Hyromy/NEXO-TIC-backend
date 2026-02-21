@@ -19,6 +19,7 @@
     - [Especificaciones de la VM](#especificaciones-de-la-vm)
     - [Configuración de Red](#configuración-de-red)
     - [Credenciales de la VM](#credenciales-de-la-vm)
+    - [Mantenimiento del servidor SMTP](#mantenimiento-del-servidor-smtp)
 
 ## VARIABLES DE ENTORNO
 
@@ -138,3 +139,27 @@ La VM tiene una IP estática, pero espera que la máquina anfitriona (tu PC) ten
 ### Credenciales de la VM
 - **Usuario:** `root`
 - **Contraseña:** `hyro`
+
+### Mantenimiento del servidor SMTP
+
+El servidor de correos SMTP (Postfix) puede presentar comportamientos inesperados e inestabilidad con el proyecto si se recicla multiples veces o se hace una limpieza deficiente de la base de datos, a continuación se detallan instrucciones para su correcta limpieza
+
+1. Eliminar las bandejas existentes
+```sh
+rm -rf /home/mailboxes/*
+```
+
+2. Eliminar entradas de correo
+```sh
+sudo nano /etc/postfix/vmailboxes
+```
+
+3. Recargar mapa de correos
+```sh
+postmap /etc/postfix/vmailbox
+```
+
+4. Recargar postfix
+```sh
+systemctl reload postfix
+```
