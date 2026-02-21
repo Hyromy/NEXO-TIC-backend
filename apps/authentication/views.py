@@ -136,3 +136,25 @@ def recover(request: Request) -> Response:
             {"ok": True},
             status = status.HTTP_200_OK
         )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@require_fields(("new_password", str))
+def reset_password(request: Request) -> Response:
+    with atomic():
+        user = request.user
+        new_password = request.data.get("new_password")
+
+        if not new_password:
+            return Response(
+                {"error": "New password is required."},
+                status = status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+        user.save()
+    
+    return Response(
+        {"ok": True},
+        status = status.HTTP_200_OK
+    )
