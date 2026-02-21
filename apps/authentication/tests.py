@@ -688,3 +688,123 @@ class RecoverPasswordEndpointTestCase(APITestCase):
         # El password NO debe haber cambiado (rollback)
         self.user.refresh_from_db()
         self.assertEqual(self.user.password, old_password)
+
+
+class ResetPasswordEndpointTestCase(APITestCase):
+    """ Tests para el endpoint POST /auth/reset-password/ """
+
+    def setUp(self):
+        """ Crear un usuario y autenticarlo """
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='oldpassword123'
+        )
+
+        # Autenticar cliente
+        self.client.force_authenticate(user=self.user)
+
+    def test_reset_password_exitoso(self):
+        """
+        Test: Reset password exitoso devuelve ok=True y cambia la contraseña
+        """
+
+        data = {
+            'new_password': 'newsecurepass456'
+        }
+
+        response = self.client.post('/auth/reset-password/', data, format='json')
+
+        # Verificar respuesta exitosa
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('ok'))
+
+        # Verificar que el password realmente cambió
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('newsecurepass456'))
+
+    def test_reset_password_nuevo_password_funciona_en_login(self):
+        """
+        Test: Después del reset, el usuario puede autenticarse con la nueva contraseña
+        """
+
+        data = {
+            'new_password': 'brandnewpass789'
+        }
+
+        self.client.post('/auth/reset-password/', data, format='json')
+
+        # Desautenticar y probar login con la nueva contraseña
+        self.client.force_authenticate(user=None)
+
+        login_data = {
+            'username': 'testuser',
+            'password': 'brandnewpass789'
+        }
+
+        response = self.client.post('/auth/login/', login_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+
+    def test_reset_password_password_viejo_ya_no_funciona(self):
+        """
+        Test: Después del reset, la contraseña anterior ya no es válida
+        """
+
+        data = {
+            'new_password': 'replacedpass999'
+        }
+
+        self.client.post('/auth/reset-password/', data, format='json')
+
+        self.client.force_authenticate(user=None)
+
+        login_data = {
+            'username': 'testuser',
+            'password': 'oldpassword123'  # ← Contraseña vieja
+        }
+
+        response = self.client.post('/auth/login/', login_data, format='json')
+
+        # Debe fallar con la contraseña antigua
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_reset_password_sin_autenticacion(self):
+        """
+        Test: Reset password sin autenticación debe fallar con 401
+        """
+
+        # Desautenticar cliente
+        self.client.force_authenticate(user=None)
+
+        data = {
+            'new_password': 'anypassword123'
+        }
+
+        response = self.client.post('/auth/reset-password/', data, format='json')
+
+        # Debe fallar por falta de autenticación
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_reset_password_sin_new_password(self):
+        """
+        Test: Reset password sin el campo new_password debe fallar con 400
+        """
+
+        data = {}  # Falta new_password
+
+        response = self.client.post('/auth/reset-password/', data, format='json')
+
+        # Debe fallar por campo faltante
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password', response.data)
+
+    def test_reset_password_metodo_get_no_permitido(self):
+        """
+        Test: El endpoint solo acepta POST, no GET
+        """
+
+        response = self.client.get('/auth/reset-password/')
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
