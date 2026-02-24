@@ -6,6 +6,7 @@ from .views import (
     signup,
     logout,
     recover,
+    reset_password,
 )
 
 urlpatterns = [
@@ -14,4 +15,5 @@ urlpatterns = [
     path("refresh/", MyTokenRefreshView.as_view()),     # public
     path("recover/", recover),                          # public
     path("logout/", logout),
+    path("reset-password/", reset_password)
 ]
