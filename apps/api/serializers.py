@@ -1,5 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
+from rest_framework.exceptions import ValidationError
+from django.utils.crypto import get_random_string
 
 class UserSerializer(ModelSerializer):
     class Meta:
@@ -26,7 +28,23 @@ class UserSerializer(ModelSerializer):
 
 #   Importacion de modelos reales
 from datetime import date
-from apps.models.models import Department, VacationApproval, VacationDetail, VacationPeriod, VacationPolicy, Employee, JobPosition, VacationRequest 
+from apps.models.models import (
+    Announcement, 
+    Department,
+    EmployeeTermination,
+    EmploymentHistory, 
+    IncidentJustification,
+    ReportHistory,
+    Role, 
+    VacationApproval, 
+    VacationDetail, 
+    VacationPeriod, 
+    VacationPolicy, 
+    Employee, 
+    JobPosition, 
+    VacationRequest, 
+    Incident,
+) 
 
 #   Departamento
 class DepartmentSerializer(ModelSerializer):
@@ -69,21 +87,29 @@ class EmployeeSerializer(ModelSerializer):
         fields = "__all__"
 
     def create(self, validated_data):
-        """
-        Cuando se crea un empleado:
-        1. Se guarda el empleado
-        2. Se calcula antigüedad
-        3. Se busca política correspondiente
-        4. Se crea VacationPeriod automáticamente
-        """
 
-        employee = super().create(validated_data)
+        email = validated_data["email"]
 
-        # Calcular años de antigüedad
+        # generar contraseña temporal
+        temp_password = get_random_string(10)
+
+        # crear usuario de Django
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=temp_password
+        )
+
+        # crear empleado
+        employee = Employee.objects.create(
+            user=user,
+            **validated_data
+        )
+
+        # calcular antigüedad
         today = date.today()
         years = today.year - employee.join_date.year
 
-        # Buscar política más cercana
         policy = VacationPolicy.objects.filter(
             seniority_years__lte=years,
             enabled=True
@@ -140,7 +166,35 @@ class VacationDetailSerializer(ModelSerializer):
         model = VacationDetail
         fields = "__all__"
 
-#   Aprovacion Vacaciones 
+    def validate(self, data):
+
+        request = data["vacation_request"]
+        employee = request.employee
+        selected_day = data["selected_day"]
+
+        # evitar dias duplicados
+        if VacationDetail.objects.filter(
+            vacation_request=request,
+            selected_day=selected_day
+        ).exists():
+            raise ValidationError("Este día ya fue solicitado.")
+
+        # contar dias solicitados actualmente
+        existing_days = VacationDetail.objects.filter(
+            vacation_request=request
+        ).count()
+
+        # buscar periodo
+        period = VacationPeriod.objects.filter(
+            employee=employee
+        ).first()
+
+        if period and existing_days + 1 > period.days_remaining:
+            raise ValidationError("No tiene suficientes días disponibles.")
+
+        return data
+
+#   Aprobacion Vacaciones 
 class VacationApprovalSerializer(ModelSerializer):
     """
     Representa la aprobación o rechazo de una solicitud de vacaciones.
@@ -151,6 +205,11 @@ class VacationApprovalSerializer(ModelSerializer):
         fields = "__all__"
 
     def create(self, validated_data):
+        if VacationApproval.objects.filter(
+            vacation_request=validated_data["vacation_request"]
+        ).exists():
+            raise ValidationError("Esta solicitud ya fue procesada.")
+        
         approval = super().create(validated_data)
 
         # Si se aprueba la solicitud
@@ -179,3 +238,94 @@ class VacationApprovalSerializer(ModelSerializer):
             request.save()
 
         return approval
+
+#   Incidencias
+class IncidentSerializer(ModelSerializer):
+    """
+    Representa una incidencia registrada a un empleado.
+    """
+
+    class Meta:
+        model = Incident
+        fields = "__all__"
+
+#   Jusificacion Incidencia
+class IncidentJustificationSerializer(ModelSerializer):
+    """
+    Justificación enviada por el empleado.
+    """
+
+    class Meta:
+        model = IncidentJustification
+        fields = "__all__"
+
+    def validate(self, data):
+
+        incident = data["incident"]
+
+        if IncidentJustification.objects.filter(
+            incident=incident
+        ).exists():
+            raise ValidationError("Esta incidencia ya fue justificada.")
+
+        return data
+
+#   Anuncios
+class AnnouncementSerializer(ModelSerializer):
+    """
+    Avisos publicados por RH para los empleados.
+    """
+
+    class Meta:
+        model = Announcement
+        fields = "__all__"
+
+#   Historial de Empleos
+class EmploymentHistorySerializer(ModelSerializer):
+    """
+    Historial de cambios de puesto de un empleado.
+    """
+
+    class Meta:
+        model = EmploymentHistory
+        fields = "__all__"
+
+#   Baja Empleado
+class EmployeeTerminationSerializer(ModelSerializer):
+    """
+    Registro de bajas de empleados.
+    """
+
+    class Meta:
+        model = EmployeeTermination
+        fields = "__all__"
+
+    def create(self, validated_data):
+
+        termination = super().create(validated_data)
+
+        employee = termination.employee
+        employee.enabled = False
+        employee.save()
+
+        return termination
+
+#   Historial de reportes
+class ReportHistorySerializer(ModelSerializer):
+    """
+    Historial de reportes generados en el sistema.
+    """
+
+    class Meta:
+        model = ReportHistory
+        fields = "__all__"
+
+#   Roles del sistema
+class RoleSerializer(ModelSerializer):
+    """
+    Roles del sistema.
+    """
+
+    class Meta:
+        model = Role
+        fields = "__all__"
