@@ -3,6 +3,7 @@ import logging
 from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.template.loader import render_to_string
 
 from requests import get
 
@@ -18,7 +19,8 @@ def __create_user_inbox(*, user: User) -> bool:
 def __safe_send(user: User, *,
     subject: str = "{{ No subject }}",
     summary: str = "{{ No summary }}",
-    message: str = "{{ No message }}"
+    message: str = "{{ No message }}",
+    template: str | None = None
 ):
     if settings.DEBUG:
         bar = "="
@@ -39,7 +41,8 @@ def __safe_send(user: User, *,
             message = message,
             from_email = settings.DEFAULT_FROM_EMAIL,
             recipient_list = [user.email],
-            fail_silently = False
+            fail_silently = False,
+            html_message = template
         )
 
     except Exception as e:
@@ -53,12 +56,18 @@ def welcome(*, user: User, tmp_pass: str):
     __safe_send(user,
         subject = "Bienvenido a NexoTic",
         summary = f"Registro exitoso, contraseña temporal {tmp_pass}",
-        message = f"Gracias por registrarte en nuestro sistema. tu contraseña temporal es {tmp_pass}"
+        template = render_to_string("mail/welcome.html", {
+            "user": user,
+            "tmp_pass": tmp_pass
+        })
     )
 
 def recover(*, user: User, tmp_pass: str):
     __safe_send(user,
         subject = "Recuperación de contraseña",
         summary = f"Contraseña temporal {tmp_pass}",
-        message = f"Tu contraseña temporal es {tmp_pass}"
+        template = render_to_string("mail/recover.html", {
+            "user": user,
+            "tmp_pass": tmp_pass
+        })
     )
