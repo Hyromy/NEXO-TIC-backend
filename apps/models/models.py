@@ -49,12 +49,7 @@ class JobPosition(models.Model):
 #    third order models
 # -------------------------
 class Employee(models.Model):
-    user = models.OneToOneField(
-    User,
-    on_delete=models.CASCADE,
-    null=True,
-    blank=True
-    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length = 50)
     surname = models.CharField(max_length = 50)
     mothers_name = models.CharField(max_length = 50, null = True, blank = True)

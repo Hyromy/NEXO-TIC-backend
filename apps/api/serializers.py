@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
 from rest_framework.exceptions import ValidationError
 from django.utils.crypto import get_random_string
+from utils.randomizer import generate_password
 
 class UserSerializer(ModelSerializer):
     class Meta:
@@ -48,40 +49,18 @@ from apps.models.models import (
 
 #   Departamento
 class DepartmentSerializer(ModelSerializer):
-    """
-    Convierte el modelo Department en JSON y viceversa.
-    Esto permite:
-    - Crear departamentos
-    - Listarlos
-    - Editarlos
-    - Eliminarlos
-    """
     class Meta:
         model = Department
         fields = "__all__"
 
 #   Puesto
 class JobPositionSerializer(ModelSerializer):
-    """
-    Permite convertir JobPosition a JSON y viceversa.
-    Incluye relación con Department.
-    """
     class Meta:
         model = JobPosition
         fields = "__all__"
 
 #   Empleado
 class EmployeeSerializer(ModelSerializer):
-    """
-    Serializer para el modelo Employee.
-
-    Permite:
-    - Crear empleados
-    - Listarlos
-    - Editarlos
-    - Eliminarlos (baja lógica recomendada)
-    """
-
     class Meta:
         model = Employee
         fields = "__all__"
@@ -91,7 +70,7 @@ class EmployeeSerializer(ModelSerializer):
         email = validated_data["email"]
 
         # generar contraseña temporal
-        temp_password = get_random_string(10)
+        temp_password = generate_password()
 
         # crear usuario de Django
         user = User.objects.create_user(
@@ -128,40 +107,24 @@ class EmployeeSerializer(ModelSerializer):
 
 #   Politica de Vacaciones
 class VacationPolicySerializer(ModelSerializer):
-    """
-    Define cuántos días corresponden según años de antigüedad.
-    """
-
     class Meta:
         model = VacationPolicy
         fields = "__all__"
 
 #   Periodo Vcacional
 class VacationPeriodSerializer(ModelSerializer):
-    """
-    Representa el saldo anual de vacaciones del empleado.
-    """
-
     class Meta:
         model = VacationPeriod
         fields = "__all__"
 
 #   Solicitud vacaciones 
 class VacationRequestSerializer(ModelSerializer):
-    """
-    Representa la solicitud de vacaciones.
-    """
-
     class Meta:
         model = VacationRequest
         fields = "__all__"
         
 #   Detalle Vacaciones
 class VacationDetailSerializer(ModelSerializer):
-    """
-    Representa un día específico dentro de una solicitud de vacaciones.
-    """
-
     class Meta:
         model = VacationDetail
         fields = "__all__"
@@ -196,10 +159,6 @@ class VacationDetailSerializer(ModelSerializer):
 
 #   Aprobacion Vacaciones 
 class VacationApprovalSerializer(ModelSerializer):
-    """
-    Representa la aprobación o rechazo de una solicitud de vacaciones.
-    """
-
     class Meta:
         model = VacationApproval
         fields = "__all__"
@@ -241,20 +200,12 @@ class VacationApprovalSerializer(ModelSerializer):
 
 #   Incidencias
 class IncidentSerializer(ModelSerializer):
-    """
-    Representa una incidencia registrada a un empleado.
-    """
-
     class Meta:
         model = Incident
         fields = "__all__"
 
 #   Jusificacion Incidencia
 class IncidentJustificationSerializer(ModelSerializer):
-    """
-    Justificación enviada por el empleado.
-    """
-
     class Meta:
         model = IncidentJustification
         fields = "__all__"
@@ -272,30 +223,18 @@ class IncidentJustificationSerializer(ModelSerializer):
 
 #   Anuncios
 class AnnouncementSerializer(ModelSerializer):
-    """
-    Avisos publicados por RH para los empleados.
-    """
-
     class Meta:
         model = Announcement
         fields = "__all__"
 
 #   Historial de Empleos
 class EmploymentHistorySerializer(ModelSerializer):
-    """
-    Historial de cambios de puesto de un empleado.
-    """
-
     class Meta:
         model = EmploymentHistory
         fields = "__all__"
 
 #   Baja Empleado
 class EmployeeTerminationSerializer(ModelSerializer):
-    """
-    Registro de bajas de empleados.
-    """
-
     class Meta:
         model = EmployeeTermination
         fields = "__all__"
@@ -312,20 +251,12 @@ class EmployeeTerminationSerializer(ModelSerializer):
 
 #   Historial de reportes
 class ReportHistorySerializer(ModelSerializer):
-    """
-    Historial de reportes generados en el sistema.
-    """
-
     class Meta:
         model = ReportHistory
         fields = "__all__"
 
 #   Roles del sistema
 class RoleSerializer(ModelSerializer):
-    """
-    Roles del sistema.
-    """
-
     class Meta:
         model = Role
         fields = "__all__"

@@ -21,7 +21,6 @@ from .views import (
     EmployeeTerminationViewSet,
     EmploymentHistoryViewSet,
     ReportHistoryViewSet,
-    me,
 )
 
 router = DefaultRouter()
@@ -47,6 +46,4 @@ router.register(r'roles', RoleViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("me/", me),
-    path("dashboard/", dashboard),
 ]
