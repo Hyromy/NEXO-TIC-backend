@@ -6,12 +6,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
 
-class UserViewSet(ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-#   ///////////////////////////////////////////////////////////////////
-
 #   Importacion de modelos y serializers reales
 
 from apps.models.models import (
@@ -49,6 +43,11 @@ from .serializers import (
     ReportHistorySerializer,
     RoleSerializer,
 )
+
+class UserViewSet(ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    
 #   Departamento
 class DepartmentViewSet(ModelViewSet):
     queryset = Department.objects.all()

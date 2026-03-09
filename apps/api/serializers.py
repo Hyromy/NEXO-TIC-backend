@@ -1,7 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
 from rest_framework.exceptions import ValidationError
-from django.utils.crypto import get_random_string
 from utils.randomizer import generate_password
 
 class UserSerializer(ModelSerializer):
