@@ -1,7 +1,18 @@
 from django.contrib import admin
+from .models import *
 
-import apps.models.models as app_models
-
-for model in app_models.__dict__.values():
-    if isinstance(model, type) and issubclass(model, app_models.models.Model):
-        admin.site.register(model)
+admin.site.register(Role)
+admin.site.register(Department)
+admin.site.register(JobPosition)
+admin.site.register(Employee)
+admin.site.register(VacationPolicy)
+admin.site.register(VacationPeriod)
+admin.site.register(VacationRequest)
+admin.site.register(VacationDetail)
+admin.site.register(VacationApproval)
+admin.site.register(Incident)
+admin.site.register(IncidentJustification)
+admin.site.register(Announcement)
+admin.site.register(EmploymentHistory)
+admin.site.register(EmployeeTermination)
+admin.site.register(ReportHistory)
