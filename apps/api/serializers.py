@@ -1,7 +1,10 @@
+from django.db import transaction
 from django.contrib.auth.models import User
-from rest_framework.serializers import ModelSerializer
+from rest_framework.serializers import CharField, EmailField, ModelSerializer
 from rest_framework.exceptions import ValidationError
 from utils.randomizer import generate_password
+
+from apps.mail.mails import welcome as welcome_mail
 
 class UserSerializer(ModelSerializer):
     class Meta:
@@ -60,48 +63,63 @@ class JobPositionSerializer(ModelSerializer):
 
 #   Empleado
 class EmployeeSerializer(ModelSerializer):
+    email = EmailField(write_only=True, required=True)
+    name = CharField(write_only=True, required=True)
+    last_name = CharField(write_only=True, required=True)
+
     class Meta:
         model = Employee
         fields = "__all__"
 
+    def validate(self, data):
+        # Evitar error de integridad por email duplicado en auth_user.
+        if User.objects.filter(email=data["email"]).exists():
+            raise ValidationError({"email": "Este correo ya está registrado."})
+        return data
+
     def create(self, validated_data):
-
-        email = validated_data["email"]
-
-        # generar contraseña temporal
-        temp_password = generate_password()
-
-        # crear usuario de Django
-        user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=temp_password
+        temp_password = generate_password(
+            use_upper = True,
+            use_numbers = True
         )
 
-        # crear empleado
-        employee = Employee.objects.create(
-            user=user,
-            **validated_data
-        )
+        name = validated_data.pop("name")
+        last_name = validated_data.pop("last_name")
+        email = validated_data.pop("email")
 
-        # calcular antigüedad
-        today = date.today()
-        years = today.year - employee.join_date.year
-
-        policy = VacationPolicy.objects.filter(
-            seniority_years__lte=years,
-            enabled=True
-        ).order_by('-seniority_years').first()
-
-        if policy:
-            VacationPeriod.objects.create(
-                year=today.year,
-                days_assigned=policy.vacation_days,
-                days_used=0,
-                days_remaining=policy.vacation_days,
-                employee=employee
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=email.split("@")[0],
+                email=email,
+                password=temp_password,
+                first_name=name,
+                last_name=last_name
             )
+            
+            employee = Employee.objects.create(
+                user=user,
+                **validated_data
+            )
+        
+            # calcular antigüedad
+            today = date.today()
+            years = today.year - employee.join_date.year
+            policy = VacationPolicy.objects.filter(
+                seniority_years__lte=years,
+                enabled=True
+            ).order_by('-seniority_years').first()
+        
+            if policy:
+                VacationPeriod.objects.create(
+                    year=today.year,
+                    days_assigned=policy.vacation_days,
+                    days_used=0,
+                    days_remaining=policy.vacation_days,
+                    employee=employee
+                )
 
+            welcome_mail(user=employee.user, tmp_pass=temp_password)
+        
         return employee
 
 #   Politica de Vacaciones
