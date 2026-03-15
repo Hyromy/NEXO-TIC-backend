@@ -49,13 +49,13 @@ class JobPosition(models.Model):
 #    third order models
 # -------------------------
 class Employee(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    name = models.CharField(max_length = 50)
-    surname = models.CharField(max_length = 50)
-    mothers_name = models.CharField(max_length = 50, null = True, blank = True)
+    user = models.OneToOneField(
+        User,
+        on_delete = models.CASCADE,
+        null = True,
+        blank = True    
+    )
     join_date = models.DateField(auto_created = True)
-    status = models.CharField(max_length = 20)
-    email = models.EmailField(unique = True)
     phone = models.CharField(max_length = 20, unique = True)
 
     enabled = models.BooleanField(default = True)
@@ -63,7 +63,10 @@ class Employee(models.Model):
     job_position = models.ForeignKey(JobPosition, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.name} {self.surname} - {self.job_position.name}"
+        usr = self.user
+        name = f"{usr.first_name} {usr.last_name}" if usr.first_name else usr.username
+        return f"{name} - {self.job_position.name}"
+
 
 
 # --------------------------
