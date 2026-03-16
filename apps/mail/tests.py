@@ -336,7 +336,7 @@ class WelcomeMailTestCase(TestCase):
         # Verificar cada parte del email
         self.assertEqual(call_kwargs['subject'], 'Bienvenido a NexoTic')
         self.assertIn('testuser@example.com', call_kwargs['recipient_list'])
-        self.assertIn(tmp_pass, call_kwargs['message'])  # ← Password en mensaje
+        self.assertIn(tmp_pass, call_kwargs['html_message'])  # ← Password en plantilla HTML
         self.assertEqual(call_kwargs['from_email'], 'noreply@nexotic.com')
         self.assertEqual(call_kwargs['fail_silently'], False)  # ← Debe fallar ruidosamente
 
@@ -463,7 +463,7 @@ class WelcomeMailTestCase(TestCase):
         
         # Verificar que el password complejo está en el mensaje
         call_kwargs = mock_send_mail.call_args[1]
-        self.assertIn(tmp_pass, call_kwargs['message'])
+        self.assertIn(tmp_pass, call_kwargs['html_message'])
 
 class RecoverMailTestCase(TestCase):
     """ Tests para la función recover() """
@@ -543,7 +543,7 @@ class RecoverMailTestCase(TestCase):
         # Verificar cada parte del email
         self.assertEqual(call_kwargs['subject'], 'Recuperación de contraseña')
         self.assertIn('testuser@example.com', call_kwargs['recipient_list'])
-        self.assertIn(tmp_pass, call_kwargs['message'])  # ← Password en mensaje
+        self.assertIn(tmp_pass, call_kwargs['html_message'])  # ← Password en plantilla HTML
         self.assertEqual(call_kwargs['from_email'], 'noreply@nexotic.com')
         self.assertEqual(call_kwargs['fail_silently'], False)
 
@@ -561,7 +561,7 @@ class RecoverMailTestCase(TestCase):
         
         # Verificar el mensaje
         call_kwargs = mock_send_mail.call_args[1]
-        message = call_kwargs['message']
+        message = call_kwargs['html_message']
         
         # Debe mencionar que es temporal
         self.assertIn('contraseña temporal', message.lower())
@@ -581,7 +581,7 @@ class RecoverMailTestCase(TestCase):
         
         # Verificar que el password complejo está en el mensaje
         call_kwargs = mock_send_mail.call_args[1]
-        self.assertIn(tmp_pass, call_kwargs['message'])
+        self.assertIn(tmp_pass, call_kwargs['html_message'])
 
     # ==========================================
     # Tests de manejo de errores

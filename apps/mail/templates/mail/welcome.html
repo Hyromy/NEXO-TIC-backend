@@ -1,0 +1,28 @@
+{% extends "mail/base.html" %}
+
+{% block title %}Bienvenido a NexoTic{% endblock %}
+
+{% block header %}
+    <h1>🎉 ¡Bienvenido a NexoTic!</h1>
+    <p>Tu cuenta ha sido creada exitosamente</p>
+{% endblock %}
+
+{% block content %}
+    <p>Hola, <strong>{{ user.first_name }}</strong>.</p>
+    <p>Nos alegra tenerte en <strong>NexoTic</strong>. Tu cuenta fue registrada con el correo <strong>{{ user.email }}</strong>. Tu contraseña temporal es:</p>
+
+    <div class="password-box">{{ tmp_pass }}</div>
+
+    <div class="steps">
+        <p>📋 Próximos pasos:</p>
+        <ol>
+            <li>Inicia sesión con tu correo y la contraseña temporal.</li>
+            <li>Dirígete a tu perfil.</li>
+            <li>Cambia tu contraseña por una segura.</li>
+        </ol>
+    </div>
+
+    <div class="warning">
+        ⚠️ Por seguridad, te recomendamos cambiar tu contraseña en tu primer inicio de sesión.
+    </div>
+{% endblock %}
