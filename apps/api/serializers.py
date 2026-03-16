@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.contrib.auth.models import User
-from rest_framework.serializers import CharField, EmailField, ModelSerializer
+from rest_framework.serializers import CharField, EmailField, ModelSerializer, PrimaryKeyRelatedField
 from rest_framework.exceptions import ValidationError
 from utils.randomizer import generate_password
 
@@ -66,6 +66,7 @@ class EmployeeSerializer(ModelSerializer):
     email = EmailField(write_only=True, required=True)
     name = CharField(write_only=True, required=True)
     last_name = CharField(write_only=True, required=True)
+    department = PrimaryKeyRelatedField(queryset=Department.objects.all(), write_only=True, required=False)
 
     class Meta:
         model = Employee
@@ -73,8 +74,22 @@ class EmployeeSerializer(ModelSerializer):
 
     def validate(self, data):
         # Evitar error de integridad por email duplicado en auth_user.
-        if User.objects.filter(email=data["email"]).exists():
-            raise ValidationError({"email": "Este correo ya está registrado."})
+        email = data.get("email")
+        if email:
+            users = User.objects.filter(email=email)
+            if self.instance and self.instance.user_id:
+                users = users.exclude(pk=self.instance.user_id)
+            if users.exists():
+                raise ValidationError({"email": "Este correo ya está registrado."})
+
+        # Si se manda department, debe coincidir con el department del job_position.
+        department = data.get("department")
+        job_position = data.get("job_position")
+        if department:
+            selected_position = job_position or (self.instance.job_position if self.instance else None)
+            if selected_position and selected_position.department_id != department.id:
+                raise ValidationError({"job_position": "El puesto no pertenece al departamento enviado."})
+
         return data
 
     def create(self, validated_data):
@@ -86,6 +101,7 @@ class EmployeeSerializer(ModelSerializer):
         name = validated_data.pop("name")
         last_name = validated_data.pop("last_name")
         email = validated_data.pop("email")
+        validated_data.pop("department", None)
 
         with transaction.atomic():
             user = User.objects.create_user(
@@ -121,6 +137,51 @@ class EmployeeSerializer(ModelSerializer):
             welcome_mail(user=employee.user, tmp_pass=temp_password)
         
         return employee
+
+    def update(self, instance, validated_data):
+        name = validated_data.pop("name", None)
+        last_name = validated_data.pop("last_name", None)
+        email = validated_data.pop("email", None)
+        department = validated_data.pop("department", None)
+
+        with transaction.atomic():
+            user = instance.user
+
+            # Si llega email/nombre y el empleado no tiene usuario, se crea uno.
+            if user is None and (email is not None or name is not None or last_name is not None):
+                if not email:
+                    raise ValidationError({"email": "El email es obligatorio para crear el usuario."})
+                user = User.objects.create_user(
+                    username=email.split("@")[0],
+                    email=email,
+                    password=generate_password(use_upper=True, use_numbers=True),
+                    first_name=name or "",
+                    last_name=last_name or "",
+                )
+                instance.user = user
+
+            if user is not None:
+                if name is not None:
+                    user.first_name = name
+                if last_name is not None:
+                    user.last_name = last_name
+                if email is not None:
+                    user.email = email
+                    user.username = email.split("@")[0]
+                user.save()
+
+            # department es solo de entrada para validar consistencia con job_position.
+            if department is not None:
+                selected_position = validated_data.get("job_position", instance.job_position)
+                if selected_position.department_id != department.id:
+                    raise ValidationError({"job_position": "El puesto no pertenece al departamento enviado."})
+
+            for field, value in validated_data.items():
+                setattr(instance, field, value)
+
+            instance.save()
+
+        return instance
 
 #   Politica de Vacaciones
 class VacationPolicySerializer(ModelSerializer):
