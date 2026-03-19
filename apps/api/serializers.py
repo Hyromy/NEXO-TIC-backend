@@ -118,6 +118,7 @@ class VacationPeriodSerializer(ModelSerializer):
 
 #   Solicitud vacaciones 
 class VacationRequestSerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
     class Meta:
         model = VacationRequest
         fields = "__all__"
