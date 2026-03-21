@@ -52,7 +52,7 @@ class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length = 50)
     surname = models.CharField(max_length = 50)
-    mothers_name = models.CharField(max_length = 50, null = True, blank = True)
+    mothers_name = models.CharField(max_length  = 50, null = True, blank = True)
     join_date = models.DateField(auto_created = True)
     status = models.CharField(max_length = 20)
     email = models.EmailField(unique = True)

@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
+import rest_framework.serializers as serializers
 from rest_framework.exceptions import ValidationError
 from utils.randomizer import generate_password
 
@@ -54,12 +55,25 @@ class DepartmentSerializer(ModelSerializer):
 
 #   Puesto
 class JobPositionSerializer(ModelSerializer):
+    department = DepartmentSerializer(read_only=True)
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        source='department',
+        write_only=True
+    )
     class Meta:
         model = JobPosition
         fields = "__all__"
 
 #   Empleado
 class EmployeeSerializer(ModelSerializer):
+    user = UserSerializer(read_only=True)
+    job_position = JobPositionSerializer(read_only=True)
+    job_position_id = serializers.PrimaryKeyRelatedField(
+        queryset=JobPosition.objects.all(),
+        source='job_position',
+        write_only=True
+    )
     class Meta:
         model = Employee
         fields = "__all__"
@@ -112,18 +126,36 @@ class VacationPolicySerializer(ModelSerializer):
 
 #   Periodo Vcacional
 class VacationPeriodSerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
     class Meta:
         model = VacationPeriod
         fields = "__all__"
 
 #   Solicitud vacaciones 
 class VacationRequestSerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
     class Meta:
         model = VacationRequest
         fields = "__all__"
         
 #   Detalle Vacaciones
 class VacationDetailSerializer(ModelSerializer):
+    vacation_request = VacationRequestSerializer(read_only=True)
+    vacation_request_id = serializers.PrimaryKeyRelatedField(
+        queryset=VacationRequest.objects.all(),
+        source='vacation_request',
+        write_only=True
+    )
     class Meta:
         model = VacationDetail
         fields = "__all__"
@@ -158,6 +190,19 @@ class VacationDetailSerializer(ModelSerializer):
 
 #   Aprobacion Vacaciones 
 class VacationApprovalSerializer(ModelSerializer):
+    vacation_request = VacationRequestSerializer(read_only=True)
+    vacation_request_id = serializers.PrimaryKeyRelatedField(
+        queryset=VacationRequest.objects.all(),
+        source='vacation_request',
+        write_only=True
+    )
+
+    approver = EmployeeSerializer(read_only=True)
+    approver_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='approver',
+        write_only=True
+    )
     class Meta:
         model = VacationApproval
         fields = "__all__"
@@ -199,12 +244,24 @@ class VacationApprovalSerializer(ModelSerializer):
 
 #   Incidencias
 class IncidentSerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
     class Meta:
         model = Incident
         fields = "__all__"
 
 #   Jusificacion Incidencia
 class IncidentJustificationSerializer(ModelSerializer):
+    incident = IncidentSerializer(read_only=True)
+    incident_id = serializers.PrimaryKeyRelatedField(
+        queryset=Incident.objects.all(),
+        source='incident',
+        write_only=True
+    )
     class Meta:
         model = IncidentJustification
         fields = "__all__"
@@ -222,18 +279,51 @@ class IncidentJustificationSerializer(ModelSerializer):
 
 #   Anuncios
 class AnnouncementSerializer(ModelSerializer):
+    author = EmployeeSerializer(read_only=True)
+    author_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='author',
+        write_only=True
+    )
     class Meta:
         model = Announcement
         fields = "__all__"
 
 #   Historial de Empleos
 class EmploymentHistorySerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
+
+    last_job_position = JobPositionSerializer(read_only=True)
+    last_job_position_id = serializers.PrimaryKeyRelatedField(
+        queryset=JobPosition.objects.all(),
+        source='last_job_position',
+        write_only=True
+    )
+
+    new_job_position = JobPositionSerializer(read_only=True)
+    new_job_position_id = serializers.PrimaryKeyRelatedField(
+        queryset=JobPosition.objects.all(),
+        source='new_job_position',
+        write_only=True
+    )
+
     class Meta:
         model = EmploymentHistory
         fields = "__all__"
 
 #   Baja Empleado
 class EmployeeTerminationSerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
     class Meta:
         model = EmployeeTermination
         fields = "__all__"
@@ -250,6 +340,12 @@ class EmployeeTerminationSerializer(ModelSerializer):
 
 #   Historial de reportes
 class ReportHistorySerializer(ModelSerializer):
+    employee = EmployeeSerializer(read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(),
+        source='employee',
+        write_only=True
+    )
     class Meta:
         model = ReportHistory
         fields = "__all__"
