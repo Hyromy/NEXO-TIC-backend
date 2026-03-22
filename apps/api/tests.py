@@ -10,7 +10,8 @@ from rest_framework.test import APIRequestFactory, APITestCase
 from apps.api.decorators import (
     require_fields,
 )
-from apps.api.serializers import UserSerializer
+from apps.api.serializers import EmployeeSerializer, UserSerializer
+from apps.models.models import Department, Employee, JobPosition
 
 class RequireFieldsDecoratorTestCase(TestCase):
     """ Test for `require_fields` decorator """
@@ -454,6 +455,167 @@ class UserSerializerTestCase(TestCase):
         serializer = UserSerializer(data = data)
         self.assertFalse(serializer.is_valid())
         self.assertIn('username', serializer.errors)
+
+
+class EmployeeSerializerPatchTestCase(TestCase):
+    """Tests for Employee PATCH/update flow."""
+
+    def setUp(self):
+        self.department_1 = Department.objects.create(
+            name='Engineering',
+            description='Engineering area'
+        )
+        self.department_2 = Department.objects.create(
+            name='Operations',
+            description='Operations area'
+        )
+
+        self.position_1 = JobPosition.objects.create(
+            name='Developer',
+            description='Developer role',
+            department=self.department_1
+        )
+        self.position_2 = JobPosition.objects.create(
+            name='Coordinator',
+            description='Coordinator role',
+            department=self.department_2
+        )
+
+        self.user = User.objects.create_user(
+            username='pepe.old',
+            email='pepe.old@nexotic.com',
+            password='secret123',
+            first_name='Pepe',
+            last_name='Old'
+        )
+
+        self.employee = Employee.objects.create(
+            user=self.user,
+            join_date='2026-03-15',
+            phone='1234567',
+            job_position=self.position_1
+        )
+
+    def test_patch_serializer_updates_user_and_employee(self):
+        payload = {
+            'name': 'Joel',
+            'last_name': 'Gonzalez',
+            'department': self.department_2.id,
+            'email': 'joel@nexotic.com',
+            'phone': '5515028580',
+            'job_position': self.position_2.id
+        }
+
+        serializer = EmployeeSerializer(self.employee, data=payload, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        updated = serializer.save()
+
+        updated.refresh_from_db()
+        updated.user.refresh_from_db()
+
+        self.assertEqual(updated.phone, '5515028580')
+        self.assertEqual(updated.job_position_id, self.position_2.id)
+        self.assertEqual(updated.user.first_name, 'Joel')
+        self.assertEqual(updated.user.last_name, 'Gonzalez')
+        self.assertEqual(updated.user.email, 'joel@nexotic.com')
+        self.assertEqual(updated.user.username, 'joel')
+
+    def test_patch_serializer_rejects_department_job_position_mismatch(self):
+        payload = {
+            'department': self.department_1.id,
+            'job_position': self.position_2.id
+        }
+
+        serializer = EmployeeSerializer(self.employee, data=payload, partial=True)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('job_position', serializer.errors)
+
+
+class EmployeeViewSetPatchTestCase(APITestCase):
+    """Endpoint tests for PATCH /employees/{id}/."""
+
+    def setUp(self):
+        self.auth_user = User.objects.create_user(
+            username='admin',
+            email='admin@nexotic.com',
+            password='admin123'
+        )
+        self.client.force_authenticate(user=self.auth_user)
+
+        self.department_1 = Department.objects.create(
+            name='HR',
+            description='Human Resources'
+        )
+        self.department_2 = Department.objects.create(
+            name='Sales',
+            description='Sales Department'
+        )
+
+        self.position_1 = JobPosition.objects.create(
+            name='HR Analyst',
+            description='HR role',
+            department=self.department_1
+        )
+        self.position_2 = JobPosition.objects.create(
+            name='Sales Rep',
+            description='Sales role',
+            department=self.department_2
+        )
+
+        self.user = User.objects.create_user(
+            username='pepe',
+            email='pepe@nexotic.com',
+            password='secret123',
+            first_name='Pepe',
+            last_name='Botellas'
+        )
+        self.employee = Employee.objects.create(
+            user=self.user,
+            join_date='2026-03-15',
+            phone='1234567',
+            job_position=self.position_1
+        )
+
+    def test_patch_employee_success(self):
+        payload = {
+            'name': 'Joel',
+            'last_name': 'Gonzalez',
+            'department': self.department_2.id,
+            'email': 'joel@nexotic.com',
+            'phone': '5515028580',
+            'job_position': self.position_2.id
+        }
+
+        response = self.client.patch(
+            f'/employees/{self.employee.id}/',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.employee.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(self.employee.phone, '5515028580')
+        self.assertEqual(self.employee.job_position_id, self.position_2.id)
+        self.assertEqual(self.user.first_name, 'Joel')
+        self.assertEqual(self.user.last_name, 'Gonzalez')
+        self.assertEqual(self.user.email, 'joel@nexotic.com')
+
+    def test_patch_employee_department_mismatch(self):
+        payload = {
+            'department': self.department_1.id,
+            'job_position': self.position_2.id
+        }
+
+        response = self.client.patch(
+            f'/employees/{self.employee.id}/',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('job_position', response.data)
 
     def test_serializer_with_missing_password(self):
         """ Test serializer validation when password is missing """

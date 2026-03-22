@@ -2,6 +2,7 @@ from django.test import TestCase
 from datetime import date, datetime
 from django.db.utils import IntegrityError
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 from apps.models.models import (
     Announcement,
@@ -21,6 +22,31 @@ from apps.models.models import (
     VacationDetail,
     VacationPeriod,
 )
+
+
+def create_employee_for_tests(
+    *,
+    first_name,
+    last_name,
+    phone,
+    job_position,
+    username,
+    email,
+    join_date=None,
+):
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password="TestPass123",
+        first_name=first_name,
+        last_name=last_name,
+    )
+    return Employee.objects.create(
+        user=user,
+        join_date=join_date or date.today(),
+        phone=phone,
+        job_position=job_position,
+    )
 
 class RoleModelTestCase(TestCase):
     """Role model test cases"""
@@ -183,73 +209,63 @@ class EmployeeModelTestCase(TestCase):
     
     def test_create_employee(self):
         """Check that an Employee can be created"""
-        
-        employee = Employee.objects.create(
-            name = "Juan",
-            surname = "Pérez",
-            join_date = date(2024, 1, 15),
-            status = "Active",
-            email = "juan.perez@company.com",
-            phone = "555-1234",
-            job_position = self.position
+
+        employee = create_employee_for_tests(
+            first_name="Juan",
+            last_name="Pérez",
+            phone="555-1234",
+            job_position=self.position,
+            username="juan.perez",
+            email="juan.perez@company.com",
+            join_date=date(2024, 1, 15),
         )
-        self.assertEqual(employee.name, "Juan")
-        self.assertEqual(employee.email, "juan.perez@company.com")
+        self.assertEqual(employee.user.first_name, "Juan")
+        self.assertEqual(employee.user.email, "juan.perez@company.com")
         self.assertTrue(employee.enabled)
     
     def test_employee_str(self):
         """Check the string representation of Employee"""
-        
-        employee = Employee.objects.create(
-            name = "María",
-            surname = "García",
-            join_date = date(2024, 2, 1),
-            status = "Active",
-            email = "maria.garcia@company.com",
-            phone = "555-5678",
-            job_position = self.position
+
+        employee = create_employee_for_tests(
+            first_name="María",
+            last_name="García",
+            phone="555-5678",
+            job_position=self.position,
+            username="maria.garcia",
+            email="maria.garcia@company.com",
+            join_date=date(2024, 2, 1),
         )
         expected = "María García - Sales Rep"
         self.assertEqual(str(employee), expected)
     
-    def test_employee_email_unique(self):
-        """Check that Employee email is unique"""
-        
-        Employee.objects.create(
-            name = "Carlos",
-            surname = "López",
-            join_date = date(2024, 1, 1),
-            status = "Active",
-            email = "carlos@company.com",
-            phone = "555-1111",
-            job_position = self.position
+    def test_employee_phone_unique(self):
+        """Check that Employee phone is unique"""
+
+        create_employee_for_tests(
+            first_name="Carlos",
+            last_name="López",
+            phone="555-1111",
+            job_position=self.position,
+            username="carlos.lopez",
+            email="carlos@company.com",
+            join_date=date(2024, 1, 1),
         )
-        
+
         with self.assertRaises(IntegrityError):
             Employee.objects.create(
-                name = "Pedro",
-                surname = "Martínez",
-                join_date = date(2024, 1, 1),
-                status = "Active",
-                email = "carlos@company.com",
-                phone = "555-2222",
-                job_position = self.position
+                phone="555-1111",
+                job_position=self.position,
             )
     
-    def test_employee_with_mothers_name(self):
-        """Check that mothers_name is optional"""
-        
+    def test_employee_user_optional(self):
+        """Check that user relation is optional"""
+
         employee = Employee.objects.create(
-            name = "Ana",
-            surname = "Torres",
-            mothers_name = "González",
-            join_date = date(2024, 3, 1),
-            status = "Active",
-            email = "ana.torres@company.com",
-            phone = "555-9999",
-            job_position = self.position
+            join_date=date(2024, 3, 1),
+            phone="555-9999",
+            job_position=self.position,
         )
-        self.assertEqual(employee.mothers_name, "González")
+        self.assertIsNone(employee.user)
 
 class CustomUserModelTestCase(TestCase):
     """CustomUser model test cases"""
@@ -266,14 +282,14 @@ class CustomUserModelTestCase(TestCase):
             description = "Software Developer",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Luis",
-            surname = "Ramírez",
-            join_date = date(2023, 1, 1),
-            status = "Active",
-            email = "luis.ramirez@company.com",
-            phone = "555-0001",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Luis",
+            last_name="Ramírez",
+            phone="555-0001",
+            job_position=self.position,
+            username="luis.ramirez",
+            email="luis.ramirez@company.com",
+            join_date=date(2023, 1, 1),
         )
         self.role = Role.objects.create(
             name = "User",
@@ -332,14 +348,14 @@ class IncidentModelTestCase(TestCase):
             description = "Human Resources Manager",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Pedro",
-            surname = "Sánchez",
-            join_date = date(2023, 5, 1),
-            status = "Active",
-            email = "pedro.sanchez@company.com",
-            phone = "555-0002",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Pedro",
+            last_name="Sánchez",
+            phone="555-0002",
+            job_position=self.position,
+            username="pedro.sanchez",
+            email="pedro.sanchez@company.com",
+            join_date=date(2023, 5, 1),
         )
     
     def test_create_incident(self):
@@ -398,14 +414,14 @@ class EmploymentHistoryModelTestCase(TestCase):
             description = "Senior level analyst",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Sofia",
-            surname = "Hernández",
-            join_date = date(2022, 1, 1),
-            status = "Active",
-            email = "sofia.hernandez@company.com",
-            phone = "555-0003",
-            job_position = self.position2
+        self.employee = create_employee_for_tests(
+            first_name="Sofia",
+            last_name="Hernández",
+            phone="555-0003",
+            job_position=self.position2,
+            username="sofia.hernandez",
+            email="sofia.hernandez@company.com",
+            join_date=date(2022, 1, 1),
         )
     
     def test_create_employment_history(self):
@@ -449,14 +465,14 @@ class ReportHistoryModelTestCase(TestCase):
             description = "Financial Accountant",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Diego",
-            surname = "Morales",
-            join_date = date(2023, 3, 1),
-            status = "Active",
-            email = "diego.morales@company.com",
-            phone = "555-0004",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Diego",
+            last_name="Morales",
+            phone="555-0004",
+            job_position=self.position,
+            username="diego.morales",
+            email="diego.morales@company.com",
+            join_date=date(2023, 3, 1),
         )
     
     def test_create_report_history(self):
@@ -501,14 +517,14 @@ class VacationPeriodModelTestCase(TestCase):
             description = "Marketing professional",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Carmen",
-            surname = "Ruiz",
-            join_date = date(2021, 1, 1),
-            status = "Active",
-            email = "carmen.ruiz@company.com",
-            phone = "555-0005",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Carmen",
+            last_name="Ruiz",
+            phone="555-0005",
+            job_position=self.position,
+            username="carmen.ruiz",
+            email="carmen.ruiz@company.com",
+            join_date=date(2021, 1, 1),
         )
     
     def test_create_vacation_period(self):
@@ -553,14 +569,14 @@ class EmployeeTerminationModelTestCase(TestCase):
             description = "Corporate Lawyer",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Roberto",
-            surname = "Díaz",
-            join_date = date(2020, 6, 1),
-            status = "Active",
-            email = "roberto.diaz@company.com",
-            phone = "555-0006",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Roberto",
+            last_name="Díaz",
+            phone="555-0006",
+            job_position=self.position,
+            username="roberto.diaz",
+            email="roberto.diaz@company.com",
+            join_date=date(2020, 6, 1),
         )
     
     def test_create_employee_termination(self):
@@ -601,14 +617,14 @@ class AnnouncementModelTestCase(TestCase):
             description = "Chief Executive Officer",
             department = self.department
         )
-        self.author = Employee.objects.create(
-            name = "Elena",
-            surname = "Vargas",
-            join_date = date(2018, 1, 1),
-            status = "Active",
-            email = "elena.vargas@company.com",
-            phone = "555-0007",
-            job_position = self.position
+        self.author = create_employee_for_tests(
+            first_name="Elena",
+            last_name="Vargas",
+            phone="555-0007",
+            job_position=self.position,
+            username="elena.vargas",
+            email="elena.vargas@company.com",
+            join_date=date(2018, 1, 1),
         )
     
     def test_create_announcement(self):
@@ -650,14 +666,14 @@ class VacationRequestModelTestCase(TestCase):
             description = "Customer Support Agent",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Miguel",
-            surname = "Castro",
-            join_date = date(2022, 8, 1),
-            status = "Active",
-            email = "miguel.castro@company.com",
-            phone = "555-0008",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Miguel",
+            last_name="Castro",
+            phone="555-0008",
+            job_position=self.position,
+            username="miguel.castro",
+            email="miguel.castro@company.com",
+            join_date=date(2022, 8, 1),
         )
     
     def test_create_vacation_request(self):
@@ -696,14 +712,14 @@ class IncidentJustificationModelTestCase(TestCase):
             description = "Delivery Driver",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Jorge",
-            surname = "Méndez",
-            join_date = date(2023, 2, 1),
-            status = "Active",
-            email = "jorge.mendez@company.com",
-            phone = "555-0009",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Jorge",
+            last_name="Méndez",
+            phone="555-0009",
+            job_position=self.position,
+            username="jorge.mendez",
+            email="jorge.mendez@company.com",
+            join_date=date(2023, 2, 1),
         )
         self.incident = Incident.objects.create(
             type = "Late Arrival",
@@ -741,14 +757,14 @@ class VacationDetailModelTestCase(TestCase):
             description = "Machine Operator",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Isabel",
-            surname = "Ramos",
-            join_date = date(2021, 9, 1),
-            status = "Active",
-            email = "isabel.ramos@company.com",
-            phone = "555-0010",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Isabel",
+            last_name="Ramos",
+            phone="555-0010",
+            job_position=self.position,
+            username="isabel.ramos",
+            email="isabel.ramos@company.com",
+            join_date=date(2021, 9, 1),
         )
         self.vacation_request = VacationRequest.objects.create(
             status = "Pending",
@@ -796,23 +812,23 @@ class VacationApprovalModelTestCase(TestCase):
             description = "Quality Manager",
             department = self.department
         )
-        self.employee = Employee.objects.create(
-            name = "Fernando",
-            surname = "Ortiz",
-            join_date = date(2023, 4, 1),
-            status = "Active",
-            email = "fernando.ortiz@company.com",
-            phone = "555-0011",
-            job_position = self.position
+        self.employee = create_employee_for_tests(
+            first_name="Fernando",
+            last_name="Ortiz",
+            phone="555-0011",
+            job_position=self.position,
+            username="fernando.ortiz",
+            email="fernando.ortiz@company.com",
+            join_date=date(2023, 4, 1),
         )
-        self.approver = Employee.objects.create(
-            name = "Laura",
-            surname = "Silva",
-            join_date = date(2019, 1, 1),
-            status = "Active",
-            email = "laura.silva@company.com",
-            phone = "555-0012",
-            job_position = self.manager_position
+        self.approver = create_employee_for_tests(
+            first_name="Laura",
+            last_name="Silva",
+            phone="555-0012",
+            job_position=self.manager_position,
+            username="laura.silva",
+            email="laura.silva@company.com",
+            join_date=date(2019, 1, 1),
         )
         self.vacation_request = VacationRequest.objects.create(
             status = "Pending",
