@@ -1,0 +1,20 @@
+{% extends "mail/base.html" %}
+
+{% block title %}Recuperación de contraseña{% endblock %}
+
+{% block header %}
+    <h1>🔒 Recuperación de contraseña</h1>
+{% endblock %}
+
+{% block content %}
+    <p>Hola, <strong>{{ user.first_name }}</strong>.</p>
+    <p>Recibimos una solicitud para restablecer tu contraseña en <strong>NexoTic</strong>. Tu contraseña temporal es:</p>
+
+    <div class="password-box">{{ tmp_pass }}</div>
+
+    <p>Ingresa con esta contraseña y cámbiala desde tu perfil lo antes posible.</p>
+
+    <div class="warning">
+        ⚠️ Si no solicitaste este cambio, contacta con nuestro soporte inmediatamente.
+    </div>
+{% endblock %}

@@ -1,6 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
+def _employee_display_name(employee):
+    user = employee.user
+    if not user:
+        return "Unknown"
+    full_name = f"{user.first_name} {user.last_name}".strip()
+    return full_name or user.username
+
 # -------------------------
 #    first order models
 # -------------------------
@@ -49,13 +57,13 @@ class JobPosition(models.Model):
 #    third order models
 # -------------------------
 class Employee(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    name = models.CharField(max_length = 50)
-    surname = models.CharField(max_length = 50)
-    mothers_name = models.CharField(max_length  = 50, null = True, blank = True)
-    join_date = models.DateField(auto_created = True)
-    status = models.CharField(max_length = 20)
-    email = models.EmailField(unique = True)
+    user = models.OneToOneField(
+        User,
+        on_delete = models.CASCADE,
+        null = True,
+        blank = True    
+    )
+    join_date = models.DateField()
     phone = models.CharField(max_length = 20, unique = True)
 
     enabled = models.BooleanField(default = True)
@@ -63,7 +71,9 @@ class Employee(models.Model):
     job_position = models.ForeignKey(JobPosition, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.name} {self.surname} - {self.job_position.name}"
+        name = _employee_display_name(self)
+        return f"{name} - {self.job_position.name}"
+
 
 
 # --------------------------
@@ -85,7 +95,7 @@ class CustomUser(models.Model):
     role = models.ForeignKey(Role, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.username} - {self.employee.name} {self.employee.surname}"
+        return f"{self.username} - {_employee_display_name(self.employee)}"
 
 class Incident(models.Model):
     type = models.CharField(max_length = 30)
@@ -98,7 +108,7 @@ class Incident(models.Model):
     employee = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.type} - {self.employee.name} {self.employee.surname}"
+        return f"{self.type} - {_employee_display_name(self.employee)}"
 
 class EmploymentHistory(models.Model):
     update_at = models.DateTimeField(auto_now = True)
@@ -111,7 +121,8 @@ class EmploymentHistory(models.Model):
     new_job_position = models.ForeignKey(JobPosition, on_delete = models.CASCADE, related_name = "new_job_position")
 
     def __str__(self):
-        return f"{self.employee.name} {self.employee.surname} - {self.last_job_position.name} to {self.new_job_position.name}"
+        employee_name = _employee_display_name(self.employee)
+        return f"{employee_name} - {self.last_job_position.name} to {self.new_job_position.name}"
 
 class ReportHistory(models.Model):
     type = models.CharField(max_length = 50)
@@ -125,7 +136,7 @@ class ReportHistory(models.Model):
     employee = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.type} - {self.employee.name} {self.employee.surname}"
+        return f"{self.type} - {_employee_display_name(self.employee)}"
 
 class VacationPeriod(models.Model):
     year = models.IntegerField()
@@ -138,7 +149,7 @@ class VacationPeriod(models.Model):
     employee = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.year} - {self.employee.name} {self.employee.surname}"
+        return f"{self.year} - {_employee_display_name(self.employee)}"
 
 class EmployeeTermination(models.Model):
     date = models.DateField(auto_now = True)
@@ -150,7 +161,7 @@ class EmployeeTermination(models.Model):
     employee = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.type} - {self.employee.name} {self.employee.surname}"
+        return f"{self.type} - {_employee_display_name(self.employee)}"
 
 class Announcement(models.Model):
     title = models.CharField(max_length = 100)
@@ -174,7 +185,7 @@ class VacationRequest(models.Model):
     employee = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"Vacation Request - {self.employee.name} {self.employee.surname} - {self.status}"
+        return f"Vacation Request - {_employee_display_name(self.employee)} - {self.status}"
 
 # -------------------------
 #    fifth order models
@@ -198,7 +209,8 @@ class VacationDetail(models.Model):
     vacation_request = models.ForeignKey(VacationRequest, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.selected_day} - {self.vacation_request.employee.name} {self.vacation_request.employee.surname}"
+        employee_name = _employee_display_name(self.vacation_request.employee)
+        return f"{self.selected_day} - {employee_name}"
 
 class VacationApproval(models.Model):
     date = models.DateTimeField(auto_now_add = True)
@@ -211,4 +223,6 @@ class VacationApproval(models.Model):
     approver = models.ForeignKey(Employee, on_delete = models.CASCADE)
 
     def __str__(self):
-        return f"{self.decision} - {self.vacation_request.employee.name} {self.vacation_request.employee.surname} - Approver: {self.approver.name} {self.approver.surname}"
+        request_employee_name = _employee_display_name(self.vacation_request.employee)
+        approver_name = _employee_display_name(self.approver)
+        return f"{self.decision} - {request_employee_name} - Approver: {approver_name}"

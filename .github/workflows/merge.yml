@@ -1,0 +1,44 @@
+name: Auto PR from dev to main
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  
+  workflow_dispatch:
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if dev is ahead of main
+        run: |
+          git fetch origin main dev
+          COUNT=$(git rev-list origin/dev ^origin/main --count)
+          if [ "$COUNT" -gt 0 ]; then
+            echo "Dev is ahead of main by $COUNT commit(s)"
+            echo "CREATE_PR=true" >> $GITHUB_ENV
+          else
+            echo "No changes to PR"
+            echo "CREATE_PR=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: env.CREATE_PR == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "Auto PR: dev → main" \
+            --body "Automated PR from dev to main because dev is ahead." \
+            || echo "PR already exists or could not be created"

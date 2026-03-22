@@ -55,7 +55,10 @@ class JobPositionViewSet(ModelViewSet):
 
 #   Empleado
 class EmployeeViewSet(ModelViewSet):
-    queryset = Employee.objects.all()
+    queryset = Employee.objects.select_related(
+    "user",
+    "job_position__department"
+    )
     serializer_class = EmployeeSerializer
 
 #   Politica de Vacaciones

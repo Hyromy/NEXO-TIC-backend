@@ -131,7 +131,7 @@ La VM tiene una IP estática, pero espera que la máquina anfitriona (tu PC) ten
 | Dispositivo | IP Configurada | Dominio |
 | - | - | - |
 | **VM (Guest)** | `192.168.1.100` | `mail.nexotic.com` |
-| **PC (Host)** | `192.168.1.128` | `nexotic.com` |
+| **PC (Host)** | `192.168.1.128` | `nexotic.com`, `api.nexotic.com` |
 
 > [!IMPORTANT]
 > Si tu red local asigna IPs diferentes, deberás entrar a la VM y modificar las zonas DNS o ajustar la asignación de IPs del router.
