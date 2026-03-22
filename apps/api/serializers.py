@@ -80,15 +80,21 @@ class EmployeeSerializer(ModelSerializer):
     job_position_id = serializers.PrimaryKeyRelatedField(
         queryset=JobPosition.objects.all(),
         source='job_position',
-        write_only=True
+        write_only=True,
+        required=False
     )
-    
+    job_position_input = PrimaryKeyRelatedField(
+        queryset=JobPosition.objects.all(),
+        source='job_position',
+        write_only=True,
+        required=False
+    )
     class Meta:
         model = Employee
         fields = "__all__"
 
     def validate(self, data):
-        # Evitar error de integridad por email duplicado en auth_user.
+        # email
         email = data.get("email")
         if email:
             users = User.objects.filter(email=email)
@@ -97,22 +103,19 @@ class EmployeeSerializer(ModelSerializer):
             if users.exists():
                 raise ValidationError({"email": "Este correo ya está registrado."})
 
-        # Si se manda department, debe coincidir con el department del job_position.
         department = data.get("department")
         job_position = data.get("job_position")
 
-        # Si es PATCH, tomar valores existentes si no vienen
         if self.instance:
-            if not department:
-                department = self.instance.job_position.department
-            if not job_position:
-                job_position = self.instance.job_position
+            department = department or self.instance.job_position.department
+            job_position = job_position or self.instance.job_position
 
         if department and job_position:
             if job_position.department_id != department.id:
                 raise ValidationError({
                     "job_position": "El puesto no pertenece al departamento enviado."
                 })
+
         return data
 
     def create(self, validated_data):
@@ -205,6 +208,10 @@ class EmployeeSerializer(ModelSerializer):
                         "job_position": "El puesto no pertenece al departamento enviado."
                     })
                 
+            job_position = validated_data.pop("job_position", None)
+            if job_position:
+                instance.job_position = job_position
+
             for field, value in validated_data.items():
                 setattr(instance, field, value)
 
