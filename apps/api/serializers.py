@@ -99,11 +99,20 @@ class EmployeeSerializer(ModelSerializer):
 
         # Si se manda department, debe coincidir con el department del job_position.
         department = data.get("department")
-        job_position = data.get("job_position") or (self.instance.job_position if self.instance else None)   
+        job_position = data.get("job_position")
+
+        # Si es PATCH, tomar valores existentes si no vienen
+        if self.instance:
+            if not department:
+                department = self.instance.job_position.department
+            if not job_position:
+                job_position = self.instance.job_position
+
         if department and job_position:
             if job_position.department_id != department.id:
-                raise ValidationError({"job_position": "El puesto no pertenece al departamento enviado."})
-
+                raise ValidationError({
+                    "job_position": "El puesto no pertenece al departamento enviado."
+                })
         return data
 
     def create(self, validated_data):
@@ -189,10 +198,13 @@ class EmployeeSerializer(ModelSerializer):
 
             # department es solo de entrada para validar consistencia con job_position.
             if department is not None:
-                selected_position = validated_data.get("job_position", instance.job_position)
-                if selected_position.department_id != department.id:
-                    raise ValidationError({"job_position": "El puesto no pertenece al departamento enviado."})
+                job_position = validated_data.get("job_position") or instance.job_position
 
+                if job_position.department_id != department.id:
+                    raise ValidationError({
+                        "job_position": "El puesto no pertenece al departamento enviado."
+                    })
+                
             for field, value in validated_data.items():
                 setattr(instance, field, value)
 
