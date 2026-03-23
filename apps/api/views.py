@@ -55,10 +55,7 @@ class JobPositionViewSet(ModelViewSet):
 
 #   Empleado
 class EmployeeViewSet(ModelViewSet):
-    queryset = Employee.objects.select_related(
-    "user",
-    "job_position__department"
-    )
+    queryset = Employee.objects.select_related("user","job_position__department")
     serializer_class = EmployeeSerializer
 
 #   Politica de Vacaciones
@@ -73,7 +70,7 @@ class VacationPeriodViewSet(ModelViewSet):
 
 #   Solicitud de vacaciones
 class VacationRequestViewSet(ModelViewSet):
-    queryset = VacationRequest.objects.all()
+    queryset = VacationRequest.objects.select_related("employee__user","employee__job_position__department")
     serializer_class = VacationRequestSerializer
 
 #   Detalle de vacaciones
@@ -83,7 +80,7 @@ class VacationDetailViewSet(ModelViewSet):
 
 #   Aprovacion de Vacaciones
 class VacationApprovalViewSet(ModelViewSet):
-    queryset = VacationApproval.objects.all()
+    queryset = VacationApproval.objects.select_related("vacation_request__employee__user","approver__user")
     serializer_class = VacationApprovalSerializer
 
 #   Incidencias
@@ -98,12 +95,12 @@ class IncidentJustificationViewSet(ModelViewSet):
 
 #   Anuncios
 class AnnouncementViewSet(ModelViewSet):
-    queryset = Announcement.objects.all()
+    queryset = Announcement.objects.select_related("author__user")
     serializer_class = AnnouncementSerializer
 
 #   Historial de Empleos
 class EmploymentHistoryViewSet(ModelViewSet):
-    queryset = EmploymentHistory.objects.all()
+    queryset = EmploymentHistory.objects.select_related("employee__user","last_job_position__department","new_job_position__department")
     serializer_class = EmploymentHistorySerializer
 
 #   Baja de Empleados

@@ -2,7 +2,6 @@ from django.db import transaction
 from django.contrib.auth.models import User
 from rest_framework.serializers import CharField, EmailField, ModelSerializer, PrimaryKeyRelatedField
 from rest_framework.exceptions import ValidationError
-import rest_framework.serializers as serializers
 from utils.randomizer import generate_password
 
 from apps.mail.mails import welcome as welcome_mail
@@ -59,7 +58,7 @@ class DepartmentSerializer(ModelSerializer):
 #   Puesto
 class JobPositionSerializer(ModelSerializer):
     department = DepartmentSerializer(read_only=True)
-    department_id = serializers.PrimaryKeyRelatedField(
+    department_id = PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
         source='department',
         write_only=True
@@ -77,24 +76,18 @@ class EmployeeSerializer(ModelSerializer):
 
     user = UserSerializer(read_only=True)
     job_position = JobPositionSerializer(read_only=True)
-    job_position_id = serializers.PrimaryKeyRelatedField(
+    job_position_id = PrimaryKeyRelatedField(
         queryset=JobPosition.objects.all(),
         source='job_position',
-        write_only=True,
-        required=False
+        write_only=True
     )
-    job_position_input = PrimaryKeyRelatedField(
-        queryset=JobPosition.objects.all(),
-        source='job_position',
-        write_only=True,
-        required=False
-    )
+    
     class Meta:
         model = Employee
         fields = "__all__"
 
     def validate(self, data):
-        # email
+        # Evitar error de integridad por email duplicado en auth_user.
         email = data.get("email")
         if email:
             users = User.objects.filter(email=email)
@@ -103,25 +96,27 @@ class EmployeeSerializer(ModelSerializer):
             if users.exists():
                 raise ValidationError({"email": "Este correo ya está registrado."})
 
+        # Validar consistencia departamento vs puesto
         department = data.get("department")
         job_position = data.get("job_position")
 
         if self.instance:
-            department = department or self.instance.job_position.department
-            job_position = job_position or self.instance.job_position
+            if not department:
+                department = self.instance.job_position.department
+            if not job_position:
+                job_position = self.instance.job_position
 
         if department and job_position:
             if job_position.department_id != department.id:
                 raise ValidationError({
                     "job_position": "El puesto no pertenece al departamento enviado."
                 })
-
         return data
 
     def create(self, validated_data):
         temp_password = generate_password(
-            use_upper = True,
-            use_numbers = True
+            use_upper=True,
+            use_numbers=True
         )
 
         name = validated_data.pop("name")
@@ -130,6 +125,8 @@ class EmployeeSerializer(ModelSerializer):
         validated_data.pop("department", None)
 
         with transaction.atomic():
+
+            # Crear usuario
             user = User.objects.create_user(
                 username=email.split("@")[0],
                 email=email,
@@ -137,20 +134,41 @@ class EmployeeSerializer(ModelSerializer):
                 first_name=name,
                 last_name=last_name
             )
-            
+
+            # ASIGNAR ROL SEGÚN DEPARTAMENTO
+            job_position = validated_data.get("job_position")
+
+            if job_position and job_position.department:
+                dept_name = job_position.department.name.strip().lower()
+
+                # ADMIN
+                if "admin" in dept_name:
+                    user.is_superuser = True
+                    user.is_staff = True
+
+                # RH
+                elif "rh" in dept_name or "recursos" in dept_name:
+                    user.is_staff = True
+
+                # EMPLOYEE → no se hace nada
+
+                user.save()
+
+            # Crear empleado
             employee = Employee.objects.create(
                 user=user,
                 **validated_data
             )
-        
-            # calcular antigüedad
+
+            # Calcular antigüedad y vacaciones
             today = date.today()
             years = today.year - employee.join_date.year
+
             policy = VacationPolicy.objects.filter(
                 seniority_years__lte=years,
                 enabled=True
             ).order_by('-seniority_years').first()
-        
+
             if policy:
                 VacationPeriod.objects.create(
                     year=today.year,
@@ -160,11 +178,9 @@ class EmployeeSerializer(ModelSerializer):
                     employee=employee
                 )
 
-            try:
-                welcome_mail(user=employee.user, tmp_pass=temp_password)
-            except Exception as e:
-                print("Error enviando correo:", e)
-        
+        # Enviar correo
+        welcome_mail(user=employee.user, tmp_pass=temp_password)
+
         return employee
 
     def update(self, instance, validated_data):
@@ -176,10 +192,11 @@ class EmployeeSerializer(ModelSerializer):
         with transaction.atomic():
             user = instance.user
 
-            # Si llega email/nombre y el empleado no tiene usuario, se crea uno.
+            # Crear usuario si no existe
             if user is None and (email is not None or name is not None or last_name is not None):
                 if not email:
                     raise ValidationError({"email": "El email es obligatorio para crear el usuario."})
+
                 user = User.objects.create_user(
                     username=email.split("@")[0],
                     email=email,
@@ -189,6 +206,7 @@ class EmployeeSerializer(ModelSerializer):
                 )
                 instance.user = user
 
+            # Actualizar datos de usuario
             if user is not None:
                 if name is not None:
                     user.first_name = name
@@ -197,9 +215,10 @@ class EmployeeSerializer(ModelSerializer):
                 if email is not None:
                     user.email = email
                     user.username = email.split("@")[0]
+
                 user.save()
 
-            # department es solo de entrada para validar consistencia con job_position.
+            # Validar departamento vs puesto
             if department is not None:
                 job_position = validated_data.get("job_position") or instance.job_position
 
@@ -207,11 +226,28 @@ class EmployeeSerializer(ModelSerializer):
                     raise ValidationError({
                         "job_position": "El puesto no pertenece al departamento enviado."
                     })
-                
-            job_position = validated_data.pop("job_position", None)
-            if job_position:
-                instance.job_position = job_position
 
+            # RE-ASIGNAR ROL SI CAMBIA EL PUESTO
+            if "job_position" in validated_data and instance.user:
+                new_job_position = validated_data.get("job_position")
+
+                if new_job_position and new_job_position.department:
+                    dept_name = new_job_position.department.name.strip().lower()
+
+                    # Reset
+                    instance.user.is_superuser = False
+                    instance.user.is_staff = False
+
+                    if "admin" in dept_name:
+                        instance.user.is_superuser = True
+                        instance.user.is_staff = True
+
+                    elif "rh" in dept_name or "recursos" in dept_name:
+                        instance.user.is_staff = True
+
+                    instance.user.save()
+
+            # Actualizar empleado
             for field, value in validated_data.items():
                 setattr(instance, field, value)
 
@@ -228,7 +264,7 @@ class VacationPolicySerializer(ModelSerializer):
 #   Periodo Vcacional
 class VacationPeriodSerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
@@ -240,7 +276,7 @@ class VacationPeriodSerializer(ModelSerializer):
 #   Solicitud vacaciones 
 class VacationRequestSerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
@@ -252,7 +288,7 @@ class VacationRequestSerializer(ModelSerializer):
 #   Detalle Vacaciones
 class VacationDetailSerializer(ModelSerializer):
     vacation_request = VacationRequestSerializer(read_only=True)
-    vacation_request_id = serializers.PrimaryKeyRelatedField(
+    vacation_request_id = PrimaryKeyRelatedField(
         queryset=VacationRequest.objects.all(),
         source='vacation_request',
         write_only=True
@@ -292,21 +328,63 @@ class VacationDetailSerializer(ModelSerializer):
 #   Aprobacion Vacaciones 
 class VacationApprovalSerializer(ModelSerializer):
     vacation_request = VacationRequestSerializer(read_only=True)
-    vacation_request_id = serializers.PrimaryKeyRelatedField(
+    vacation_request_id = PrimaryKeyRelatedField(
         queryset=VacationRequest.objects.all(),
         source='vacation_request',
         write_only=True
     )
 
     approver = EmployeeSerializer(read_only=True)
-    approver_id = serializers.PrimaryKeyRelatedField(
+    approver_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='approver',
         write_only=True
     )
+
     class Meta:
         model = VacationApproval
         fields = "__all__"
+
+    def validate(self, data):
+        request = data["vacation_request"]
+        approver = data["approver"]
+        employee = request.employee
+
+        # No auto-aprobación
+        if employee.id == approver.id:
+            raise ValidationError("Un empleado no puede aprobar sus propias vacaciones.")
+
+        # Ambos deben tener usuario
+        if not approver.user or not employee.user:
+            raise ValidationError("Ambos empleados deben tener usuario.")
+
+        approver_user = approver.user
+        employee_user = employee.user
+
+        # Determinar roles (basado en flags Django)
+        def get_role(user):
+            if user.is_superuser:
+                return "ADMIN"
+            elif user.is_staff:
+                return "RH"
+            return "EMPLOYEE"
+
+        approver_role = get_role(approver_user)
+        employee_role = get_role(employee_user)
+
+        # REGLAS DE NEGOCIO
+        if approver_role == "ADMIN":
+            if employee_role != "RH":
+                raise ValidationError("El ADMIN solo puede aprobar vacaciones de RH.")
+
+        elif approver_role == "RH":
+            if employee_role != "EMPLOYEE":
+                raise ValidationError("RH solo puede aprobar vacaciones de empleados.")
+
+        else:
+            raise ValidationError("Este empleado no tiene permisos para aprobar vacaciones.")
+
+        return data
 
     def create(self, validated_data):
         if VacationApproval.objects.filter(
@@ -316,18 +394,16 @@ class VacationApprovalSerializer(ModelSerializer):
         
         approval = super().create(validated_data)
 
-        # Si se aprueba la solicitud
+        # Aplicar cambios si se aprueba
         if approval.decision == "APPROVED":
 
             request = approval.vacation_request
             employee = request.employee
 
-            # Contar días solicitados
             days_requested = VacationDetail.objects.filter(
                 vacation_request=request
             ).count()
 
-            # Buscar periodo del empleado
             period = VacationPeriod.objects.filter(
                 employee=employee
             ).first()
@@ -337,7 +413,6 @@ class VacationApprovalSerializer(ModelSerializer):
                 period.days_remaining -= days_requested
                 period.save()
 
-            # Actualizar estatus de solicitud
             request.status = "APPROVED"
             request.save()
 
@@ -346,7 +421,7 @@ class VacationApprovalSerializer(ModelSerializer):
 #   Incidencias
 class IncidentSerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
@@ -358,7 +433,7 @@ class IncidentSerializer(ModelSerializer):
 #   Jusificacion Incidencia
 class IncidentJustificationSerializer(ModelSerializer):
     incident = IncidentSerializer(read_only=True)
-    incident_id = serializers.PrimaryKeyRelatedField(
+    incident_id = PrimaryKeyRelatedField(
         queryset=Incident.objects.all(),
         source='incident',
         write_only=True
@@ -381,33 +456,49 @@ class IncidentJustificationSerializer(ModelSerializer):
 #   Anuncios
 class AnnouncementSerializer(ModelSerializer):
     author = EmployeeSerializer(read_only=True)
-    author_id = serializers.PrimaryKeyRelatedField(
+    author_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='author',
         write_only=True
     )
+
     class Meta:
         model = Announcement
         fields = "__all__"
 
+    def validate(self, data):
+        author = data["author"]
+
+        # ❌ Debe tener usuario
+        if not author.user:
+            raise ValidationError("El empleado no tiene usuario asignado.")
+
+        user = author.user
+
+        # 🔥 SOLO ADMIN Y RH
+        if not (user.is_superuser or user.is_staff):
+            raise ValidationError("Solo ADMIN o RH pueden crear anuncios.")
+
+        return data
+
 #   Historial de Empleos
 class EmploymentHistorySerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
     )
 
     last_job_position = JobPositionSerializer(read_only=True)
-    last_job_position_id = serializers.PrimaryKeyRelatedField(
+    last_job_position_id = PrimaryKeyRelatedField(
         queryset=JobPosition.objects.all(),
         source='last_job_position',
         write_only=True
     )
 
     new_job_position = JobPositionSerializer(read_only=True)
-    new_job_position_id = serializers.PrimaryKeyRelatedField(
+    new_job_position_id = PrimaryKeyRelatedField(
         queryset=JobPosition.objects.all(),
         source='new_job_position',
         write_only=True
@@ -420,7 +511,7 @@ class EmploymentHistorySerializer(ModelSerializer):
 #   Baja Empleado
 class EmployeeTerminationSerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
@@ -442,7 +533,7 @@ class EmployeeTerminationSerializer(ModelSerializer):
 #   Historial de reportes
 class ReportHistorySerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
-    employee_id = serializers.PrimaryKeyRelatedField(
+    employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
         write_only=True
