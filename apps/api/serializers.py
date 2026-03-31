@@ -142,12 +142,12 @@ class EmployeeSerializer(ModelSerializer):
                 dept_name = job_position.department.name.strip().lower()
 
                 # ADMIN
-                if "admin" in dept_name:
+                if "ADMIN" in dept_name:
                     user.is_superuser = True
                     user.is_staff = True
 
                 # RH
-                elif "rh" in dept_name or "recursos" in dept_name:
+                elif "RH" in dept_name or "Recursos Humanos" in dept_name:
                     user.is_staff = True
 
                 # EMPLOYEE → no se hace nada
@@ -469,13 +469,13 @@ class AnnouncementSerializer(ModelSerializer):
     def validate(self, data):
         author = data["author"]
 
-        # ❌ Debe tener usuario
+        # Debe tener usuario
         if not author.user:
             raise ValidationError("El empleado no tiene usuario asignado.")
 
         user = author.user
 
-        # 🔥 SOLO ADMIN Y RH
+        # SOLO ADMIN Y RH
         if not (user.is_superuser or user.is_staff):
             raise ValidationError("Solo ADMIN o RH pueden crear anuncios.")
 
