@@ -63,7 +63,7 @@ class Employee(models.Model):
         null = True,
         blank = True    
     )
-    join_date = models.DateField(auto_created = True)
+    join_date = models.DateField()
     phone = models.CharField(max_length = 20, unique = True)
 
     enabled = models.BooleanField(default = True)
@@ -79,23 +79,6 @@ class Employee(models.Model):
 # --------------------------
 #    fourth order models
 # --------------------------
-class CustomUser(models.Model):
-    """
-    Modelo legacy. Ya no se utiliza.
-    Se mantiene solo por compatibilidad.
-    """
-    
-    username = models.CharField(max_length = 50, unique = True)
-    password = models.TextField()
-    created_at = models.DateTimeField(auto_now_add = True)
-
-    enabled = models.BooleanField(default = True)
-
-    employee = models.OneToOneField(Employee, on_delete = models.CASCADE)
-    role = models.ForeignKey(Role, on_delete = models.CASCADE)
-
-    def __str__(self):
-        return f"{self.username} - {_employee_display_name(self.employee)}"
 
 class Incident(models.Model):
     type = models.CharField(max_length = 30)
