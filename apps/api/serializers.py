@@ -86,6 +86,21 @@ class EmployeeSerializer(ModelSerializer):
         model = Employee
         fields = "__all__"
 
+    def _resolve_job_position(self, data):
+        if "job_position" in data:
+            return data.get("job_position")
+
+        raw_job_position = self.initial_data.get("job_position")
+        if raw_job_position in (None, ""):
+            return None
+
+        try:
+            return JobPosition.objects.get(pk=raw_job_position)
+        except (TypeError, ValueError, JobPosition.DoesNotExist):
+            raise ValidationError({
+                "job_position": "Puesto inválido."
+            })
+
     def validate(self, data):
         # Evitar error de integridad por email duplicado en auth_user.
         email = data.get("email")
@@ -98,7 +113,10 @@ class EmployeeSerializer(ModelSerializer):
 
         # Validar consistencia departamento vs puesto
         department = data.get("department")
-        job_position = data.get("job_position")
+        job_position = self._resolve_job_position(data)
+
+        if job_position is not None:
+            data["job_position"] = job_position
 
         if self.instance:
             if not department:

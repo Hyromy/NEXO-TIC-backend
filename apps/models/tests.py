@@ -8,7 +8,6 @@ from apps.models.models import (
     Announcement,
     VacationRequest,
     VacationPolicy,
-    CustomUser,
     Department,
     Employee,
     EmployeeTermination,
