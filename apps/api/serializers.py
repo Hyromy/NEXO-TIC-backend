@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.contrib.auth.models import User
-from rest_framework.serializers import CharField, EmailField, ModelSerializer, PrimaryKeyRelatedField
+from rest_framework.serializers import CharField, EmailField, ModelSerializer, PrimaryKeyRelatedField, SerializerMethodField
 from rest_framework.exceptions import ValidationError
 from utils.randomizer import generate_password
 
@@ -86,6 +86,21 @@ class EmployeeSerializer(ModelSerializer):
         model = Employee
         fields = "__all__"
 
+    def _resolve_job_position(self, data):
+        if "job_position" in data:
+            return data.get("job_position")
+
+        raw_job_position = self.initial_data.get("job_position")
+        if raw_job_position in (None, ""):
+            return None
+
+        try:
+            return JobPosition.objects.get(pk=raw_job_position)
+        except (TypeError, ValueError, JobPosition.DoesNotExist):
+            raise ValidationError({
+                "job_position": "Puesto inválido."
+            })
+
     def validate(self, data):
         # Evitar error de integridad por email duplicado en auth_user.
         email = data.get("email")
@@ -98,7 +113,10 @@ class EmployeeSerializer(ModelSerializer):
 
         # Validar consistencia departamento vs puesto
         department = data.get("department")
-        job_position = data.get("job_position")
+        job_position = self._resolve_job_position(data)
+
+        if job_position is not None:
+            data["job_position"] = job_position
 
         if self.instance:
             if not department:
@@ -276,6 +294,8 @@ class VacationPeriodSerializer(ModelSerializer):
 #   Solicitud vacaciones 
 class VacationRequestSerializer(ModelSerializer):
     employee = EmployeeSerializer(read_only=True)
+    days = SerializerMethodField()
+    requested_days = SerializerMethodField()
     employee_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='employee',
@@ -284,7 +304,14 @@ class VacationRequestSerializer(ModelSerializer):
     class Meta:
         model = VacationRequest
         fields = "__all__"
-        
+
+    def get_days(self, obj):
+        return VacationDetail.objects.filter(vacation_request=obj, enabled=True).count()
+
+    def get_requested_days(self, obj):
+        details = VacationDetail.objects.filter(vacation_request=obj, enabled=True)
+        return [detail.selected_day.isoformat() for detail in details]
+    
 #   Detalle Vacaciones
 class VacationDetailSerializer(ModelSerializer):
     vacation_request = VacationRequestSerializer(read_only=True)
@@ -432,6 +459,7 @@ class IncidentSerializer(ModelSerializer):
 
 #   Jusificacion Incidencia
 class IncidentJustificationSerializer(ModelSerializer):
+    justification_data = SerializerMethodField()
     incident = IncidentSerializer(read_only=True)
     incident_id = PrimaryKeyRelatedField(
         queryset=Incident.objects.all(),
@@ -452,7 +480,19 @@ class IncidentJustificationSerializer(ModelSerializer):
             raise ValidationError("Esta incidencia ya fue justificada.")
 
         return data
+    
+    def get_requested_days(self, obj):
+        details = VacationDetail.objects.filter(vacation_request=obj, enabled=True)
+        return [detail.selected_day.isoformat() for detail in details]
 
+    def get_justification_data(self, obj):
+        just = IncidentJustification.objects.filter(incident=obj).first()
+        if just:
+            return {
+                "reason": just.reason,
+                "evidence": just.evidence # La URL de la foto/archivo
+            }
+        return None
 #   Anuncios
 class AnnouncementSerializer(ModelSerializer):
     author = EmployeeSerializer(read_only=True)
