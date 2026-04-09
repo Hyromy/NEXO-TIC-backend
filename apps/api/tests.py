@@ -1,3 +1,6 @@
+from datetime import date
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -10,8 +13,8 @@ from rest_framework.test import APIRequestFactory, APITestCase
 from apps.api.decorators import (
     require_fields,
 )
-from apps.api.serializers import EmployeeSerializer, UserSerializer
-from apps.models.models import Department, Employee, JobPosition
+from apps.api.serializers import EmployeeSerializer, UserSerializer, VacationDetailSerializer
+from apps.models.models import Announcement, Department, Employee, JobPosition, VacationPeriod, VacationPolicy, VacationRequest
 
 class RequireFieldsDecoratorTestCase(TestCase):
     """ Test for `require_fields` decorator """
@@ -529,6 +532,211 @@ class EmployeeSerializerPatchTestCase(TestCase):
         serializer = EmployeeSerializer(self.employee, data=payload, partial=True)
         self.assertFalse(serializer.is_valid())
         self.assertIn('job_position', serializer.errors)
+
+
+class EmployeeSerializerCreateVacationPolicyFallbackTestCase(TestCase):
+    """Regression tests for vacation assignment on employee creation."""
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            name='RRHH',
+            description='Recursos Humanos'
+        )
+        self.position = JobPosition.objects.create(
+            name='Analista RRHH',
+            description='Analista',
+            department=self.department
+        )
+
+        VacationPolicy.objects.create(
+            seniority_years=1,
+            vacation_days=12,
+            enabled=True
+        )
+
+    @patch('apps.api.serializers.welcome_mail')
+    def test_create_assigns_base_policy_when_seniority_has_no_match(self, welcome_mail_mock):
+        payload = {
+            'name': 'Laura',
+            'last_name': 'Perez',
+            'email': 'laura.perez@nexotic.com',
+            'phone': '5512345678',
+            'join_date': date.today().isoformat(),
+            'department': self.department.id,
+            'job_position_id': self.position.id,
+        }
+
+        serializer = EmployeeSerializer(data=payload)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        employee = serializer.save()
+
+        period = VacationPeriod.objects.filter(
+            employee=employee,
+            year=date.today().year,
+            enabled=True
+        ).first()
+
+        self.assertIsNotNone(period)
+        self.assertEqual(period.days_assigned, 12)
+        self.assertEqual(period.days_remaining, 12)
+        self.assertEqual(period.days_used, 0)
+        welcome_mail_mock.assert_called_once()
+
+
+class EmployeeSerializerCreateWithoutPolicyTestCase(TestCase):
+    """When there are no active policies, employee creation must still assign vacation days."""
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            name='Finanzas',
+            description='Departamento financiero'
+        )
+        self.position = JobPosition.objects.create(
+            name='Analista Finanzas',
+            description='Analista',
+            department=self.department
+        )
+
+    @patch('apps.api.serializers.welcome_mail')
+    def test_create_assigns_default_days_when_no_policy_exists(self, welcome_mail_mock):
+        payload = {
+            'name': 'Mario',
+            'last_name': 'Lopez',
+            'email': 'mario.lopez@nexotic.com',
+            'phone': '5511002200',
+            'join_date': date.today().isoformat(),
+            'department': self.department.id,
+            'job_position_id': self.position.id,
+        }
+
+        serializer = EmployeeSerializer(data=payload)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        employee = serializer.save()
+        period = VacationPeriod.objects.filter(
+            employee=employee,
+            year=date.today().year,
+            enabled=True,
+        ).first()
+
+        self.assertIsNotNone(period)
+        self.assertEqual(period.days_assigned, 15)
+        self.assertEqual(period.days_remaining, 15)
+        self.assertEqual(period.days_used, 0)
+        welcome_mail_mock.assert_called_once()
+
+
+class VacationDetailSerializerPeriodSelectionTestCase(TestCase):
+    """Vacation detail validation must use the relevant/latest period, not an arbitrary first one."""
+
+    def setUp(self):
+        self.department = Department.objects.create(
+            name='Operaciones',
+            description='Departamento operativo'
+        )
+        self.position = JobPosition.objects.create(
+            name='Operador',
+            description='Puesto operativo',
+            department=self.department
+        )
+        self.user = User.objects.create_user(
+            username='employee.period',
+            email='employee.period@nexotic.com',
+            password='testpass123',
+            first_name='Employee',
+            last_name='Period',
+        )
+        self.employee = Employee.objects.create(
+            user=self.user,
+            join_date='2024-01-01',
+            phone='5522200011',
+            job_position=self.position,
+        )
+
+        # Periodo viejo agotado
+        VacationPeriod.objects.create(
+            year=2025,
+            days_assigned=10,
+            days_used=10,
+            days_remaining=0,
+            employee=self.employee,
+            enabled=True,
+        )
+
+        # Periodo vigente con días disponibles
+        VacationPeriod.objects.create(
+            year=2026,
+            days_assigned=12,
+            days_used=0,
+            days_remaining=12,
+            employee=self.employee,
+            enabled=True,
+        )
+
+        self.request = VacationRequest.objects.create(
+            status='pending',
+            employee=self.employee,
+            enabled=True,
+        )
+
+    def test_validate_uses_selected_day_year_period(self):
+        serializer = VacationDetailSerializer(data={
+            'vacation_request_id': self.request.id,
+            'selected_day': '2026-06-15',
+        })
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+class AnnouncementViewSetCreateWithoutEmployeeAuthorTestCase(APITestCase):
+    """RRHH users without Employee should still be able to create announcements."""
+
+    def setUp(self):
+        self.rrhh_user = User.objects.create_user(
+            username='rrhh.user',
+            email='rrhh.user@nexotic.com',
+            password='rrhhpass123',
+            is_staff=True,
+        )
+        self.client.force_authenticate(user=self.rrhh_user)
+
+        self.department = Department.objects.create(
+            name='Operaciones',
+            description='Operaciones internas'
+        )
+        self.position = JobPosition.objects.create(
+            name='Operador',
+            description='Rol operativo',
+            department=self.department
+        )
+
+        self.author_user = User.objects.create_user(
+            username='author.employee',
+            email='author.employee@nexotic.com',
+            password='authorpass123',
+        )
+        self.fallback_author = Employee.objects.create(
+            user=self.author_user,
+            join_date='2026-01-10',
+            phone='5598765432',
+            job_position=self.position,
+            enabled=True,
+        )
+
+    def test_rrhh_user_can_create_announcement_without_author_id(self):
+        payload = {
+            'title': 'Aviso RRHH',
+            'content': 'Comunicado para todo el personal.',
+            'priority': 'Alta',
+        }
+
+        response = self.client.post('/announcements/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        announcement = Announcement.objects.get(pk=response.data['id'])
+        self.assertEqual(announcement.author_id, self.fallback_author.id)
 
 
 class EmployeeViewSetPatchTestCase(APITestCase):

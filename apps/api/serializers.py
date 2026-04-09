@@ -6,6 +6,8 @@ from utils.randomizer import generate_password
 
 from apps.mail.mails import welcome as welcome_mail
 
+DEFAULT_VACATION_DAYS_ON_CREATE = 15
+
 class UserSerializer(ModelSerializer):
     class Meta:
         model = User
@@ -182,19 +184,31 @@ class EmployeeSerializer(ModelSerializer):
             today = date.today()
             years = today.year - employee.join_date.year
 
-            policy = VacationPolicy.objects.filter(
+            policies = VacationPolicy.objects.filter(
+                enabled=True,
+                vacation_days__gt=0,
+            )
+            policy = policies.filter(
                 seniority_years__lte=years,
-                enabled=True
             ).order_by('-seniority_years').first()
 
-            if policy:
-                VacationPeriod.objects.create(
-                    year=today.year,
-                    days_assigned=policy.vacation_days,
-                    days_used=0,
-                    days_remaining=policy.vacation_days,
-                    employee=employee
-                )
+            # Si no hay coincidencia exacta por antigüedad (ej. empleado nuevo),
+            # usar la política base con menor antigüedad definida.
+            if not policy:
+                policy = policies.order_by('seniority_years').first()
+
+            assigned_days = policy.vacation_days if policy else DEFAULT_VACATION_DAYS_ON_CREATE
+
+            VacationPeriod.objects.update_or_create(
+                employee=employee,
+                year=today.year,
+                defaults={
+                    "days_assigned": assigned_days,
+                    "days_used": 0,
+                    "days_remaining": assigned_days,
+                    "enabled": True,
+                }
+            )
 
         # Enviar correo
         welcome_mail(user=employee.user, tmp_pass=temp_password)
@@ -344,8 +358,19 @@ class VacationDetailSerializer(ModelSerializer):
 
         # buscar periodo
         period = VacationPeriod.objects.filter(
-            employee=employee
-        ).first()
+            employee=employee,
+            enabled=True,
+            year=selected_day.year,
+        ).order_by('-id').first()
+
+        if not period:
+            period = VacationPeriod.objects.filter(
+                employee=employee,
+                enabled=True,
+            ).order_by('-year', '-id').first()
+
+        if not period:
+            raise ValidationError("No tiene un periodo vacacional asignado.")
 
         if period and existing_days + 1 > period.days_remaining:
             raise ValidationError("No tiene suficientes días disponibles.")
@@ -432,8 +457,16 @@ class VacationApprovalSerializer(ModelSerializer):
             ).count()
 
             period = VacationPeriod.objects.filter(
-                employee=employee
-            ).first()
+                employee=employee,
+                enabled=True,
+                year=date.today().year,
+            ).order_by('-id').first()
+
+            if not period:
+                period = VacationPeriod.objects.filter(
+                    employee=employee,
+                    enabled=True,
+                ).order_by('-year', '-id').first()
 
             if period:
                 period.days_used += days_requested
@@ -499,7 +532,8 @@ class AnnouncementSerializer(ModelSerializer):
     author_id = PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
         source='author',
-        write_only=True
+        write_only=True,
+        required=False
     )
 
     class Meta:
@@ -507,17 +541,34 @@ class AnnouncementSerializer(ModelSerializer):
         fields = "__all__"
 
     def validate(self, data):
-        author = data["author"]
+        request = self.context.get("request")
+        request_user = getattr(request, "user", None)
+
+        if not request_user or not request_user.is_authenticated:
+            raise ValidationError("Debe autenticarse para crear anuncios.")
+
+        # El permiso se valida por el usuario autenticado, no por el empleado autor.
+        if not (request_user.is_superuser or request_user.is_staff):
+            raise ValidationError("Solo ADMIN o RH pueden crear anuncios.")
+
+        author = data.get("author")
 
         # Debe tener usuario
-        if not author.user:
+        if author and not author.user:
             raise ValidationError("El empleado no tiene usuario asignado.")
 
-        user = author.user
+        # En creación, permitir que RH/Admin publique sin author_id explícito.
+        if self.instance is None and author is None:
+            fallback_author = Employee.objects.filter(user=request_user).first()
+            if not fallback_author:
+                fallback_author = Employee.objects.filter(enabled=True).order_by("id").first()
 
-        # SOLO ADMIN Y RH
-        if not (user.is_superuser or user.is_staff):
-            raise ValidationError("Solo ADMIN o RH pueden crear anuncios.")
+            if not fallback_author:
+                raise ValidationError({
+                    "author_id": "No hay empleados disponibles para asignar como autor."
+                })
+
+            data["author"] = fallback_author
 
         return data
 
